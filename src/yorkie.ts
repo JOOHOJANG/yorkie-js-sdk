@@ -107,6 +107,7 @@ const yorkie = {
   Text,
   Counter,
   Tree,
+  jooho: 190,
   IntType: CounterType.IntegerCnt,
   LongType: CounterType.LongCnt,
 };
