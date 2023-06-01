@@ -176,32 +176,162 @@ describe('IndexTree', function () {
 
     let pos = tree.findTreePos(0, true);
     assert.deepEqual([toDiagnostic(pos.node), pos.offset], ['root', 0]);
-    assert.equal(tree.indexOf(pos.node), 0);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 0);
 
     pos = tree.findTreePos(1, true);
     assert.deepEqual([toDiagnostic(pos.node), pos.offset], ['text.a', 0]);
-    assert.equal(tree.indexOf(pos.node), 1);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 1);
 
     pos = tree.findTreePos(3, true);
     assert.deepEqual([toDiagnostic(pos.node), pos.offset], ['text.b', 1]);
-    assert.equal(tree.indexOf(pos.node), 2);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 2);
 
     pos = tree.findTreePos(4, true);
     assert.deepEqual([toDiagnostic(pos.node), pos.offset], ['root', 1]);
-    assert.equal(tree.indexOf(pos.node), 0);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 0);
 
     pos = tree.findTreePos(10, true);
     assert.deepEqual([toDiagnostic(pos.node), pos.offset], ['text.fg', 0]);
-    assert.equal(tree.indexOf(pos.node), 10);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 10);
+  });
 
-    const firstP = tree.getRoot().children[0];
-    assert.deepEqual([toDiagnostic(firstP), tree.indexOf(firstP)], ['p', 0]);
+  it('Can find index of the given node', function () {
+    //       0   1 2 3    4   5 6 7 8    9   10 11 12   13
+    // <root> <p> a b </p> <p> c d e </p> <p>  f  g  </p>  </root>
+    const tree = buildIndexTree({
+      type: 'root',
+      children: [
+        {
+          type: 'p',
+          children: [
+            { type: 'text', value: 'a' },
+            { type: 'text', value: 'b' },
+          ],
+        },
+        { type: 'p', children: [{ type: 'text', value: 'cde' }] },
+        { type: 'p', children: [{ type: 'text', value: 'fg' }] },
+      ],
+    });
 
-    const secondP = tree.getRoot().children[1];
-    assert.deepEqual([toDiagnostic(secondP), tree.indexOf(secondP)], ['p', 4]);
+    let pos = tree.findTreePos(0, true);
+    assert.deepEqual([toDiagnostic(pos.node), pos.offset], ['root', 0]);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 0);
 
-    const thirdP = tree.getRoot().children[2];
-    assert.deepEqual([toDiagnostic(secondP), tree.indexOf(thirdP)], ['p', 9]);
+    pos = tree.findTreePos(1, true);
+    assert.deepEqual([toDiagnostic(pos.node), pos.offset], ['text.a', 0]);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 1);
+
+    pos = tree.findTreePos(3, true);
+    assert.deepEqual([toDiagnostic(pos.node), pos.offset], ['text.b', 1]);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 2);
+
+    pos = tree.findTreePos(4, true);
+    assert.deepEqual([toDiagnostic(pos.node), pos.offset], ['root', 1]);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 0);
+
+    pos = tree.findTreePos(10, true);
+    assert.deepEqual([toDiagnostic(pos.node), pos.offset], ['text.fg', 0]);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 10);
+  });
+
+  it('Can find index of the given node (complicated case)', function () {
+    //       0   1 2 3 4    5   6 7 8 9 10 11 12  13  14 15 16  17 18 19 20   21
+    // <root> <p> a b c </p> <p> c d e f  g  h </p> <p> i  j   k  l  m  n  </p>  </root>
+
+    const tree = buildIndexTree({
+      type: 'root',
+      children: [
+        {
+          type: 'p',
+          children: [
+            { type: 'text', value: 'ab' },
+            { type: 'text', value: 'c' },
+          ],
+        },
+        {
+          type: 'p',
+          children: [
+            { type: 'text', value: 'cde' },
+            { type: 'text', value: 'fgh' },
+          ],
+        },
+        {
+          type: 'p',
+          children: [
+            { type: 'text', value: 'ij' },
+            { type: 'text', value: 'k' },
+            { type: 'text', value: 'l' },
+            { type: 'text', value: 'mn' },
+          ],
+        },
+      ],
+    });
+
+    let pos = tree.findTreePos(0, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 0);
+
+    pos = tree.findTreePos(1, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 1);
+
+    pos = tree.findTreePos(2, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 2);
+
+    pos = tree.findTreePos(3, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 3);
+
+    pos = tree.findTreePos(4, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 4);
+
+    pos = tree.findTreePos(5, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 5);
+
+    pos = tree.findTreePos(6, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 6);
+
+    pos = tree.findTreePos(7, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 7);
+
+    pos = tree.findTreePos(8, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 8);
+
+    pos = tree.findTreePos(9, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 9);
+
+    pos = tree.findTreePos(10, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 10);
+
+    pos = tree.findTreePos(11, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 11);
+
+    pos = tree.findTreePos(12, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 12);
+
+    pos = tree.findTreePos(13, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 13);
+
+    pos = tree.findTreePos(14, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 14);
+
+    pos = tree.findTreePos(15, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 15);
+
+    pos = tree.findTreePos(16, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 16);
+
+    pos = tree.findTreePos(17, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 17);
+
+    pos = tree.findTreePos(18, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 18);
+
+    pos = tree.findTreePos(19, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 19);
+
+    pos = tree.findTreePos(20, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 20);
+
+    pos = tree.findTreePos(21, true);
+    assert.equal(tree.indexOf(pos.node, pos.offset), 21);
   });
 
   it.skip('Can find treePos from given path', function () {
