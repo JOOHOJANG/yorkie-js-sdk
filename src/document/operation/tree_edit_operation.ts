@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The Yorkie Authors. All rights reserved.
+ * Copyright 2023 The Yorkie Authors. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,71 +17,83 @@
 import { logger } from '@yorkie-js-sdk/src/util/logger';
 import { TimeTicket } from '@yorkie-js-sdk/src/document/time/ticket';
 import { CRDTRoot } from '@yorkie-js-sdk/src/document/crdt/root';
-import { RGATreeSplitNodePos } from '@yorkie-js-sdk/src/document/crdt/rga_tree_split';
-import { CRDTText } from '@yorkie-js-sdk/src/document/crdt/text';
+import {
+  CRDTTree,
+  CRDTTreeNode,
+  CRDTTreePos,
+} from '@yorkie-js-sdk/src/document/crdt/tree';
 import {
   Operation,
   InternalOpInfo,
 } from '@yorkie-js-sdk/src/document/operation/operation';
-import { Indexable } from '../document';
 
 /**
- *  `SelectOperation` represents an operation that selects an area in the text.
+ * `TreeEditOperation` is an operation representing Tree editing.
  */
-export class SelectOperation extends Operation {
-  private fromPos: RGATreeSplitNodePos;
-  private toPos: RGATreeSplitNodePos;
+export class TreeEditOperation extends Operation {
+  private fromPos: CRDTTreePos;
+  private toPos: CRDTTreePos;
+  private content: CRDTTreeNode | undefined;
 
   constructor(
     parentCreatedAt: TimeTicket,
-    fromPos: RGATreeSplitNodePos,
-    toPos: RGATreeSplitNodePos,
+    fromPos: CRDTTreePos,
+    toPos: CRDTTreePos,
+    content: CRDTTreeNode | undefined,
     executedAt: TimeTicket,
   ) {
     super(parentCreatedAt, executedAt);
     this.fromPos = fromPos;
     this.toPos = toPos;
+    this.content = content;
   }
 
   /**
-   * `create` creates a new instance of SelectOperation.
+   * `create` creates a new instance of EditOperation.
    */
   public static create(
     parentCreatedAt: TimeTicket,
-    fromPos: RGATreeSplitNodePos,
-    toPos: RGATreeSplitNodePos,
+    fromPos: CRDTTreePos,
+    toPos: CRDTTreePos,
+    content: CRDTTreeNode | undefined,
     executedAt: TimeTicket,
-  ): SelectOperation {
-    return new SelectOperation(parentCreatedAt, fromPos, toPos, executedAt);
+  ): TreeEditOperation {
+    return new TreeEditOperation(
+      parentCreatedAt,
+      fromPos,
+      toPos,
+      content,
+      executedAt,
+    );
   }
 
   /**
    * `execute` executes this operation on the given `CRDTRoot`.
    */
-  public execute<A extends Indexable>(root: CRDTRoot): Array<InternalOpInfo> {
+  public execute(root: CRDTRoot): Array<InternalOpInfo> {
     const parentObject = root.findByCreatedAt(this.getParentCreatedAt());
     if (!parentObject) {
       logger.fatal(`fail to find ${this.getParentCreatedAt()}`);
     }
-    if (!(parentObject instanceof CRDTText)) {
-      logger.fatal(`fail to execute, only Text can execute select`);
+    if (!(parentObject instanceof CRDTTree)) {
+      logger.fatal(`fail to execute, only Tree can execute edit`);
     }
-    const text = parentObject as CRDTText<A>;
-    const change = text.select(
+    const tree = parentObject as CRDTTree;
+    const changes = tree.edit(
       [this.fromPos, this.toPos],
+      this.content?.deepcopy(),
       this.getExecutedAt(),
     );
 
-    return change
-      ? [
-          {
-            from: change.from,
-            to: change.to,
-            type: 'select',
-            element: this.getParentCreatedAt(),
-          },
-        ]
-      : [];
+    return changes.map(({ from, to, value }) => {
+      return {
+        type: 'tree-edit',
+        from,
+        to,
+        value,
+        element: this.getParentCreatedAt(),
+      };
+    }) as Array<InternalOpInfo>;
   }
 
   /**
@@ -96,22 +108,34 @@ export class SelectOperation extends Operation {
    */
   public getStructureAsString(): string {
     const parent = this.getParentCreatedAt().getStructureAsString();
-    const fromPos = this.fromPos.getStructureAsString();
-    const toPos = this.toPos.getStructureAsString();
-    return `${parent}.SELT(${fromPos},${toPos})`;
+    const fromPos = `${this.fromPos.createdAt.getStructureAsString()}:${
+      this.fromPos.offset
+    }`;
+    const toPos = `${this.toPos.createdAt.getStructureAsString()}:${
+      this.toPos.offset
+    }`;
+    const content = this.content;
+    return `${parent}.EDIT(${fromPos},${toPos},${content})`;
   }
 
   /**
    * `getFromPos` returns the start point of the editing range.
    */
-  public getFromPos(): RGATreeSplitNodePos {
+  public getFromPos(): CRDTTreePos {
     return this.fromPos;
   }
 
   /**
    * `getToPos` returns the end point of the editing range.
    */
-  public getToPos(): RGATreeSplitNodePos {
+  public getToPos(): CRDTTreePos {
     return this.toPos;
+  }
+
+  /**
+   * `getContent` returns the content of Edit.
+   */
+  public getContent(): CRDTTreeNode | undefined {
+    return this.content;
   }
 }

@@ -49,7 +49,7 @@ import {
   InternalOpInfo,
   OperationInfo,
 } from '@yorkie-js-sdk/src/document/operation/operation';
-import { JSONObject } from './json/object';
+import { JSONObject } from '@yorkie-js-sdk/src/document/json/object';
 import { Trie } from '../util/trie';
 
 /**
@@ -132,6 +132,7 @@ export interface SnapshotEvent extends BaseDocEvent {
 export interface ChangeInfo {
   message: string;
   operations: Array<OperationInfo>;
+  actor: ActorID | undefined;
 }
 
 /**
@@ -255,7 +256,7 @@ export class Document<T> {
       this.changeID = change.getID();
 
       if (this.eventStreamObserver) {
-        this.eventStreamObserver.next({
+        this.eventStreamObserver.nextSync({
           type: DocEventType.LocalChange,
           value: [
             {
@@ -263,6 +264,7 @@ export class Document<T> {
               operations: internalOpInfos.map((internalOpInfo) =>
                 this.toOperationInfo(internalOpInfo),
               ),
+              actor: change.getID().getActorID(),
             },
           ],
         });
@@ -316,7 +318,7 @@ export class Document<T> {
           }
 
           const changeInfos: Array<ChangeInfo> = [];
-          for (const { message, operations } of event.value) {
+          for (const { message, operations, actor } of event.value) {
             const targetOps: Array<OperationInfo> = [];
             for (const op of operations) {
               if (this.isSameElementOrChildOf(op.path, target)) {
@@ -327,6 +329,7 @@ export class Document<T> {
               changeInfos.push({
                 message,
                 operations: targetOps,
+                actor,
               });
           }
           changeInfos.length &&
@@ -439,7 +442,7 @@ export class Document<T> {
    * @internal
    */
   public createChangePack(): ChangePack {
-    const changes = this.localChanges;
+    const changes = Array.from(this.localChanges);
     const checkpoint = this.checkpoint.increaseClientSeq(changes.length);
     return ChangePack.create(this.key, checkpoint, false, changes);
   }
@@ -609,12 +612,18 @@ export class Document<T> {
         operations: inernalOpInfos.map((opInfo) =>
           this.toOperationInfo(opInfo),
         ),
+        actor: change.getID().getActorID(),
       });
       this.changeID = this.changeID.syncLamport(change.getID().getLamport());
     }
 
     if (changes.length && this.eventStreamObserver) {
-      this.eventStreamObserver.next({
+      // NOTE: RemoteChange event should be emitted synchronously with
+      // applying changes. This is because 3rd party model should be synced
+      // with the Document after RemoteChange event is emitted. If the event
+      // is emitted asynchronously, the model can be changed and breaking
+      // consistency.
+      this.eventStreamObserver.nextSync({
         type: DocEventType.RemoteChange,
         value: changeInfos,
       });
