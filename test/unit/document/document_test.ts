@@ -16,21 +16,17 @@
 
 import { assert } from 'chai';
 import * as sinon from 'sinon';
-import { waitStubCallCount } from '@yorkie-js-sdk/test/helper/helper';
+import { EventCollector } from '@yorkie-js-sdk/test/helper/helper';
 
 import { MaxTimeTicket } from '@yorkie-js-sdk/src/document/time/ticket';
-import {
-  Document,
-  DocEvent,
-  DocEventType,
-} from '@yorkie-js-sdk/src/document/document';
+import { Document } from '@yorkie-js-sdk/src/document/document';
 import { OperationInfo } from '@yorkie-js-sdk/src/document/operation/operation';
 import { JSONArray, Text, Counter, Tree } from '@yorkie-js-sdk/src/yorkie';
 import { CounterType } from '@yorkie-js-sdk/src/document/crdt/counter';
 
 describe('Document', function () {
   it('doesnt return error when trying to delete a missing key', function () {
-    const doc = Document.create<{
+    const doc = new Document<{
       k1?: string;
       k2?: string;
       k3: Array<number>;
@@ -53,7 +49,7 @@ describe('Document', function () {
   it('generic type parameter test', function () {
     type Todos = { todos: Array<{ title: string; done: boolean }> };
 
-    const doc = Document.create<Todos>('test-doc');
+    const doc = new Document<Todos>('test-doc');
     doc.update((root) => {
       root.todos = [
         {
@@ -81,7 +77,7 @@ describe('Document', function () {
   });
 
   it('null value test', function () {
-    const doc = Document.create<{ data: { '': null; null: null } }>('test-doc');
+    const doc = new Document<{ data: { '': null; null: null } }>('test-doc');
     doc.update((root) => {
       root.data = {
         '': null,
@@ -89,10 +85,12 @@ describe('Document', function () {
       };
     });
     assert.equal('{"data":{"":null,"null":null}}', doc.toSortedJSON());
+    assert.equal(null, doc.getValueByPath('$.'));
+    assert.equal(null, doc.getValueByPath('$.null'));
   });
 
   it('delete elements of array test', function () {
-    const doc = Document.create<{ data: Array<number> }>('test-doc');
+    const doc = new Document<{ data: Array<number> }>('test-doc');
     doc.update((root) => {
       root.data = [0, 1, 2];
     });
@@ -119,7 +117,7 @@ describe('Document', function () {
   });
 
   it('splice array with number', function () {
-    const doc = Document.create<{ list: Array<number> }>('test-doc');
+    const doc = new Document<{ list: Array<number> }>('test-doc');
     doc.update((root) => {
       root.list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
     });
@@ -199,7 +197,7 @@ describe('Document', function () {
   });
 
   it('splice array with string', function () {
-    const doc = Document.create<{ list: Array<string> }>('test-doc');
+    const doc = new Document<{ list: Array<string> }>('test-doc');
 
     doc.update((root) => {
       root.list = ['a', 'b', 'c'];
@@ -214,7 +212,7 @@ describe('Document', function () {
   });
 
   it('splice array with object', function () {
-    const doc = Document.create<{ list: Array<{ id: number }> }>('test-doc');
+    const doc = new Document<{ list: Array<{ id: number }> }>('test-doc');
 
     doc.update((root) => {
       root.list = [{ id: 1 }, { id: 2 }];
@@ -236,7 +234,7 @@ describe('Document', function () {
     };
 
     it('concat()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.list = [1, 2, 3];
       });
@@ -248,7 +246,7 @@ describe('Document', function () {
     });
 
     it('entries()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.list = [1, 2, 3];
       });
@@ -273,7 +271,7 @@ describe('Document', function () {
     });
 
     it('every()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.empty = [];
         root.list = [1, 2, 3];
@@ -306,7 +304,7 @@ describe('Document', function () {
     });
 
     it('filter()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.empty = [];
         root.list = [1, 2, 3];
@@ -337,7 +335,7 @@ describe('Document', function () {
     });
 
     it('find()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.empty = [];
         root.list = [1, 2, 3];
@@ -374,7 +372,7 @@ describe('Document', function () {
     });
 
     it('findIndex()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.empty = [];
         root.list = [1, 2, 3];
@@ -405,7 +403,7 @@ describe('Document', function () {
     });
 
     it('forEach()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.empty = [];
         root.list = [1, 2, 3];
@@ -434,7 +432,7 @@ describe('Document', function () {
       type TestDoc = {
         list: JSONArray<number | string>;
       };
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.list = [1, 2, 3, NaN, '4'];
       });
@@ -451,7 +449,7 @@ describe('Document', function () {
     });
 
     it('includes() with objects', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.objects = [{ id: 'first' }, { id: 'second' }];
       });
@@ -463,7 +461,7 @@ describe('Document', function () {
     });
 
     it('indexOf()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.list = [1, 2, 3, 3];
       });
@@ -475,7 +473,7 @@ describe('Document', function () {
     });
 
     it('indexOf() with objects', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.objects = [{ id: 'first' }, { id: 'second' }];
       });
@@ -487,7 +485,7 @@ describe('Document', function () {
     });
 
     it('join()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.empty = [];
         root.list = [1, 2, 3];
@@ -500,7 +498,7 @@ describe('Document', function () {
     });
 
     it('keys()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.list = [1, 2, 3];
       });
@@ -514,7 +512,7 @@ describe('Document', function () {
     });
 
     it('lastIndexOf()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.list = [1, 2, 3, 3];
       });
@@ -527,7 +525,7 @@ describe('Document', function () {
     });
 
     it('lastIndexOf() with objects', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.objects = [{ id: 'first' }, { id: 'second' }];
       });
@@ -539,7 +537,7 @@ describe('Document', function () {
     });
 
     it('map()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.empty = [];
         root.list = [1, 2, 3];
@@ -570,7 +568,7 @@ describe('Document', function () {
     });
 
     it('reduce()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.empty = [];
         root.list = [1, 2, 3];
@@ -608,7 +606,7 @@ describe('Document', function () {
     });
 
     it('reduceRight()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.empty = [];
         root.list = [1, 2, 3];
@@ -646,7 +644,7 @@ describe('Document', function () {
     });
 
     it('slice()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.empty = [];
         root.list = [1, 2, 3];
@@ -661,7 +659,7 @@ describe('Document', function () {
     });
 
     it('some()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.empty = [];
         root.list = [1, 2, 3];
@@ -693,7 +691,7 @@ describe('Document', function () {
     });
 
     it('toString()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.empty = [];
         root.list = [1, 2, 3];
@@ -712,7 +710,7 @@ describe('Document', function () {
     });
 
     it('values()', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.list = [1, 2, 3];
       });
@@ -726,7 +724,7 @@ describe('Document', function () {
     });
 
     it('should allow mutation of objects returned from built in list iteration', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.objects = [{ id: 'first' }, { id: 'second' }];
       });
@@ -746,7 +744,7 @@ describe('Document', function () {
     });
 
     it('should allow mutation of objects returned from readonly list methods', () => {
-      const doc = Document.create<TestDoc>('test-doc');
+      const doc = new Document<TestDoc>('test-doc');
       doc.update((root) => {
         root.objects = [{ id: 'first' }, { id: 'second' }];
       });
@@ -763,7 +761,7 @@ describe('Document', function () {
   });
 
   it('move elements before a specific node of array', function () {
-    const doc = Document.create<{ data: JSONArray<number> }>('test-doc');
+    const doc = new Document<{ data: JSONArray<number> }>('test-doc');
     doc.update((root) => {
       root.data = [0, 1, 2];
     });
@@ -790,7 +788,7 @@ describe('Document', function () {
   });
 
   it('simple move elements before a specific node of array', function () {
-    const doc = Document.create<{ data: JSONArray<number> }>('test-doc');
+    const doc = new Document<{ data: JSONArray<number> }>('test-doc');
     doc.update((root) => {
       root.data = [0, 1, 2];
     });
@@ -809,7 +807,7 @@ describe('Document', function () {
   });
 
   it('move elements after a specific node of array', function () {
-    const doc = Document.create<{ data: JSONArray<number> }>('test-doc');
+    const doc = new Document<{ data: JSONArray<number> }>('test-doc');
     doc.update((root) => {
       root.data = [0, 1, 2];
     });
@@ -836,7 +834,7 @@ describe('Document', function () {
   });
 
   it('simple move elements after a specific node of array', function () {
-    const doc = Document.create<{ data: JSONArray<number> }>('test-doc');
+    const doc = new Document<{ data: JSONArray<number> }>('test-doc');
     doc.update((root) => {
       root.data = [0, 1, 2];
     });
@@ -855,7 +853,7 @@ describe('Document', function () {
   });
 
   it('move elements at the first of array', function () {
-    const doc = Document.create<{ data: JSONArray<number> }>('test-doc');
+    const doc = new Document<{ data: JSONArray<number> }>('test-doc');
     doc.update((root) => {
       root.data = [0, 1, 2];
     });
@@ -880,7 +878,7 @@ describe('Document', function () {
   });
 
   it('simple move elements at the first of array', function () {
-    const doc = Document.create<{ data: JSONArray<number> }>('test-doc');
+    const doc = new Document<{ data: JSONArray<number> }>('test-doc');
     doc.update((root) => {
       root.data = [0, 1, 2];
     });
@@ -898,7 +896,7 @@ describe('Document', function () {
   });
 
   it('move elements at the last of array', function () {
-    const doc = Document.create<{ data: JSONArray<number> }>('test-doc');
+    const doc = new Document<{ data: JSONArray<number> }>('test-doc');
     doc.update((root) => {
       root.data = [0, 1, 2];
     });
@@ -923,7 +921,7 @@ describe('Document', function () {
   });
 
   it('simple move elements at the last of array', function () {
-    const doc = Document.create<{ data: JSONArray<number> }>('test-doc');
+    const doc = new Document<{ data: JSONArray<number> }>('test-doc');
     doc.update((root) => {
       root.data = [0, 1, 2];
     });
@@ -941,117 +939,93 @@ describe('Document', function () {
   });
 
   it('changeInfo test for object', async function () {
-    const doc = Document.create<any>('test-doc');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const expectedOps: Array<OperationInfo> = [];
-    const ops: Array<OperationInfo> = [];
-    const stub1 = sinon.stub().callsFake((event: DocEvent) => {
-      if (event.type !== DocEventType.LocalChange) return;
-      const { operations } = event.value;
-      ops.push(...operations);
+    const doc = new Document<any>('test-doc');
+
+    type EventForTest = Array<OperationInfo>;
+    const eventCollector = new EventCollector<EventForTest>();
+    const stub = sinon.stub().callsFake((event) => {
+      eventCollector.add(event.value.operations);
     });
-    const unsub1 = doc.subscribe(stub1);
+    const unsub = doc.subscribe(stub);
 
     doc.update((root) => {
       root[''] = {};
-      expectedOps.push({ type: 'set', path: '$', key: '' });
       root.obj = {};
-      expectedOps.push({ type: 'set', path: '$', key: 'obj' });
       root.obj.a = 1;
-      expectedOps.push({ type: 'set', path: '$.obj', key: 'a' });
       delete root.obj.a;
-      expectedOps.push({ type: 'remove', path: '$.obj', key: 'a' });
-      root.obj['$.hello'] = 1;
-      expectedOps.push({ type: 'set', path: '$.obj', key: '$.hello' });
-      delete root.obj['$.hello'];
-      expectedOps.push({ type: 'remove', path: '$.obj', key: '$.hello' });
+      root.obj['$hello'] = 1;
+      delete root.obj['$hello'];
       delete root.obj;
-      expectedOps.push({ type: 'remove', path: '$', key: 'obj' });
     });
-    await waitStubCallCount(stub1, 1);
-    assert.deepEqual(
-      ops,
-      expectedOps,
-      `actual: ${JSON.stringify(ops)} \n expected: ${JSON.stringify(
-        expectedOps,
-      )}`,
-    );
 
-    unsub1();
+    await eventCollector.waitAndVerifyNthEvent(1, [
+      { type: 'set', path: '$', key: '' },
+      { type: 'set', path: '$', key: 'obj' },
+      { type: 'set', path: '$.obj', key: 'a' },
+      { type: 'remove', path: '$.obj', key: 'a' },
+      { type: 'set', path: '$.obj', key: '$hello' },
+      { type: 'remove', path: '$.obj', key: '$hello' },
+      { type: 'remove', path: '$', key: 'obj' },
+    ]);
+
+    unsub();
   });
 
   it('changeInfo test for array', async function () {
-    const doc = Document.create<any>('test-doc');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const expectedOps: Array<OperationInfo> = [];
-    const ops: Array<OperationInfo> = [];
-    const stub1 = sinon.stub().callsFake((event: DocEvent) => {
-      if (event.type !== DocEventType.LocalChange) return;
-      const { operations } = event.value;
-      ops.push(...operations);
+    const doc = new Document<any>('test-doc');
+    type EventForTest = Array<OperationInfo>;
+    const eventCollector = new EventCollector<EventForTest>();
+    const stub = sinon.stub().callsFake((event) => {
+      eventCollector.add(event.value.operations);
     });
-    const unsub1 = doc.subscribe(stub1);
+    const unsub = doc.subscribe(stub);
 
     doc.update((root) => {
       root.arr = [];
-      expectedOps.push({ type: 'set', path: '$', key: 'arr' });
       root.arr.push(0);
-      expectedOps.push({ type: 'add', path: '$.arr', index: 0 });
       root.arr.push(1);
-      expectedOps.push({ type: 'add', path: '$.arr', index: 1 });
       delete root.arr[1];
-      expectedOps.push({ type: 'remove', path: '$.arr', index: 1 });
-      root['$$...hello'] = [];
-      expectedOps.push({ type: 'set', path: '$', key: '$$...hello' });
-      root['$$...hello'].push(0);
-      expectedOps.push({ type: 'add', path: '$.$$...hello', index: 0 });
+      root['$$hello'] = [];
+      root['$$hello'].push(0);
     });
-    await waitStubCallCount(stub1, 1);
-    assert.deepEqual(
-      ops,
-      expectedOps,
-      `actual: ${JSON.stringify(ops)} \n expected: ${JSON.stringify(
-        expectedOps,
-      )}`,
-    );
 
-    unsub1();
+    await eventCollector.waitAndVerifyNthEvent(1, [
+      { type: 'set', path: '$', key: 'arr' },
+      { type: 'add', path: '$.arr', index: 0 },
+      { type: 'add', path: '$.arr', index: 1 },
+      { type: 'remove', path: '$.arr', index: 1 },
+      { type: 'set', path: '$', key: '$$hello' },
+      { type: 'add', path: '$.$$hello', index: 0 },
+    ]);
+
+    unsub();
   });
 
   it('changeInfo test for counter', async function () {
     type TestDoc = { cnt: Counter };
-    const doc = Document.create<TestDoc>('test-doc');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const expectedOps: Array<OperationInfo> = [];
-    const ops: Array<OperationInfo> = [];
-
-    const stub1 = sinon.stub().callsFake((event: DocEvent) => {
-      if (event.type !== DocEventType.LocalChange) return;
-      const { operations } = event.value;
-      ops.push(...operations);
+    const doc = new Document<TestDoc>('test-doc');
+    type EventForTest = Array<OperationInfo>;
+    const eventCollector = new EventCollector<EventForTest>();
+    const stub = sinon.stub().callsFake((event) => {
+      eventCollector.add(event.value.operations);
     });
-    const unsub1 = doc.subscribe(stub1);
+    const unsub = doc.subscribe(stub);
 
     doc.update((root) => {
       root.cnt = new Counter(CounterType.IntegerCnt, 0);
-      expectedOps.push({ type: 'set', path: '$', key: 'cnt' });
       root.cnt.increase(1);
-      expectedOps.push({ type: 'increase', path: '$.cnt', value: 1 });
       root.cnt.increase(10);
-      expectedOps.push({ type: 'increase', path: '$.cnt', value: 10 });
       root.cnt.increase(-3);
-      expectedOps.push({ type: 'increase', path: '$.cnt', value: -3 });
     });
-    await waitStubCallCount(stub1, 1);
-    assert.deepEqual(
-      ops,
-      expectedOps,
-      `actual: ${JSON.stringify(ops)} \n expected: ${JSON.stringify(
-        expectedOps,
-      )}`,
-    );
 
-    unsub1();
+    await eventCollector.waitAndVerifyNthEvent(1, [
+      { type: 'set', path: '$', key: 'cnt' },
+      { type: 'increase', path: '$.cnt', value: 1 },
+      { type: 'increase', path: '$.cnt', value: 10 },
+      { type: 'increase', path: '$.cnt', value: -3 },
+    ]);
+
+    unsub();
   });
 
   it('support TypeScript', function () {
@@ -1060,7 +1034,7 @@ describe('Document', function () {
       text: Text;
     };
 
-    const doc = Document.create<TestDoc>('test-doc');
+    const doc = new Document<TestDoc>('test-doc');
     doc.update((root) => {
       root.array = [1, 2];
       root.text = new Text();
@@ -1070,108 +1044,72 @@ describe('Document', function () {
 
   it('changeInfo test for text', async function () {
     type TestDoc = { text: Text };
-
-    const doc = Document.create<TestDoc>('test-doc');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const expectedOps: Array<OperationInfo> = [];
-    const ops: Array<OperationInfo> = [];
-    const stub1 = sinon.stub().callsFake((event: DocEvent) => {
-      if (event.type !== DocEventType.LocalChange) return;
-      const { operations } = event.value;
-      ops.push(...operations);
+    const doc = new Document<TestDoc>('test-doc');
+    type EventForTest = Array<OperationInfo>;
+    const eventCollector = new EventCollector<EventForTest>();
+    const stub = sinon.stub().callsFake((event) => {
+      eventCollector.add(event.value.operations);
     });
-    const unsub1 = doc.subscribe(stub1);
+    const unsub = doc.subscribe(stub);
 
     doc.update((root) => {
       root.text = new Text();
-      expectedOps.push({ type: 'set', path: '$', key: 'text' });
       root.text.edit(0, 0, 'hello world');
-      expectedOps.push({
+    });
+
+    await eventCollector.waitAndVerifyNthEvent(1, [
+      { type: 'set', path: '$', key: 'text' },
+      {
         type: 'edit',
         path: '$.text',
         from: 0,
         to: 0,
         value: { attributes: {}, content: 'hello world' },
-      });
-      expectedOps.push({
-        type: 'select',
-        from: 11,
-        to: 11,
-        path: '$.text',
-      });
-      root.text.select(0, 2);
-      expectedOps.push({
-        type: 'select',
-        path: '$.text',
-        from: 0,
-        to: 2,
-      });
-    });
-    await waitStubCallCount(stub1, 1);
-    assert.deepEqual(
-      ops,
-      expectedOps,
-      `actual: ${JSON.stringify(ops)} \n expected: ${JSON.stringify(
-        expectedOps,
-      )}`,
-    );
+      },
+    ]);
 
-    unsub1();
+    unsub();
   });
 
   it('changeInfo test for text with attributes', async function () {
     type TestDoc = { textWithAttr: Text };
-    const doc = Document.create<TestDoc>('test-doc');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const expectedOps: Array<OperationInfo> = [];
-    const ops: Array<OperationInfo> = [];
-    const stub1 = sinon.stub().callsFake((event: DocEvent) => {
-      if (event.type !== DocEventType.LocalChange) return;
-      const { operations } = event.value;
-      ops.push(...operations);
+    const doc = new Document<TestDoc>('test-doc');
+    type EventForTest = Array<OperationInfo>;
+    const eventCollector = new EventCollector<EventForTest>();
+    const stub = sinon.stub().callsFake((event) => {
+      eventCollector.add(event.value.operations);
     });
-    const unsub1 = doc.subscribe(stub1);
+    const unsub = doc.subscribe(stub);
 
     doc.update((root) => {
       root.textWithAttr = new Text();
-      expectedOps.push({ type: 'set', path: '$', key: 'textWithAttr' });
       root.textWithAttr.edit(0, 0, 'hello world');
-      expectedOps.push({
+      root.textWithAttr.setStyle(0, 1, { bold: 'true' });
+    });
+
+    await eventCollector.waitAndVerifyNthEvent(1, [
+      { type: 'set', path: '$', key: 'textWithAttr' },
+      {
         type: 'edit',
         path: '$.textWithAttr',
         from: 0,
         to: 0,
         value: { attributes: {}, content: 'hello world' },
-      });
-      expectedOps.push({
-        type: 'select',
-        from: 11,
-        to: 11,
-        path: '$.textWithAttr',
-      });
-      root.textWithAttr.setStyle(0, 1, { bold: 'true' });
-      expectedOps.push({
+      },
+      {
         type: 'style',
         path: '$.textWithAttr',
         from: 0,
         to: 1,
         value: { attributes: { bold: 'true' } },
-      });
-    });
-    await waitStubCallCount(stub1, 1);
-    assert.deepEqual(
-      ops,
-      expectedOps,
-      `actual: ${JSON.stringify(ops)} \n expected: ${JSON.stringify(
-        expectedOps,
-      )}`,
-    );
+      },
+    ]);
 
-    unsub1();
+    unsub();
   });
 
   it('insert elements before a specific node of array', function () {
-    const doc = Document.create<{ data: JSONArray<number> }>('test-doc');
+    const doc = new Document<{ data: JSONArray<number> }>('test-doc');
     doc.update((root) => {
       root.data = [0, 1, 2];
     });
@@ -1201,7 +1139,7 @@ describe('Document', function () {
   });
 
   it('can insert an element before specific position after delete operation', function () {
-    const doc = Document.create<{ data: JSONArray<number> }>('test-doc');
+    const doc = new Document<{ data: JSONArray<number> }>('test-doc');
     doc.update((root) => {
       root.data = [0, 1, 2];
     });
@@ -1230,7 +1168,7 @@ describe('Document', function () {
   });
 
   it('should remove previously inserted elements in heap when running GC', function () {
-    const doc = Document.create<{ a?: number }>('test-doc');
+    const doc = new Document<{ a?: number }>('test-doc');
     doc.update((root) => {
       root.a = 1;
       root.a = 2;
@@ -1245,7 +1183,7 @@ describe('Document', function () {
   });
 
   it('escapes string for object', function () {
-    const doc = Document.create<{ a?: string }>('test-doc');
+    const doc = new Document<{ a?: string }>('test-doc');
     doc.update((root) => {
       root.a = '"hello"\n\f\b\r\t\\';
     });
@@ -1253,7 +1191,7 @@ describe('Document', function () {
   });
 
   it('escapes string for text', function () {
-    const doc = Document.create<{ text?: Text }>('test-doc');
+    const doc = new Document<{ text?: Text }>('test-doc');
     doc.update((root) => {
       root.text = new Text();
       root.text.edit(0, 0, '"hello"');
@@ -1263,7 +1201,7 @@ describe('Document', function () {
 
   it('escapes string for text with Attributes', function () {
     type TestDoc = { textWithAttr: Text };
-    const doc = Document.create<TestDoc>('test-doc');
+    const doc = new Document<TestDoc>('test-doc');
     doc.update((root) => {
       root.textWithAttr = new Text();
       root.textWithAttr.edit(0, 0, '"hello"', { b: '\n' });
@@ -1275,7 +1213,7 @@ describe('Document', function () {
   });
 
   it('escapes string for elements in array', function () {
-    const doc = Document.create<{ data: JSONArray<string> }>('test-doc');
+    const doc = new Document<{ data: JSONArray<string> }>('test-doc');
     doc.update((root) => {
       root.data = ['"hello"', '\n', '\b', '\t', '\f', '\r', '\\'];
     });
@@ -1286,7 +1224,7 @@ describe('Document', function () {
   });
 
   it('gets the value of the counter', function () {
-    const doc = Document.create<{ counter: Counter }>('test-doc');
+    const doc = new Document<{ counter: Counter }>('test-doc');
     doc.update((root) => {
       root.counter = new Counter(CounterType.IntegerCnt, 155);
     });
@@ -1300,7 +1238,7 @@ describe('Document', function () {
       italic?: boolean | null;
       color?: string;
     };
-    const doc = Document.create<{ textWithAttr: Text<AttrsType> }>('test-doc');
+    const doc = new Document<{ textWithAttr: Text<AttrsType> }>('test-doc');
     doc.update((root) => {
       root.textWithAttr = new Text();
       root.textWithAttr.edit(0, 0, 'aaa', { bold: true });
@@ -1319,7 +1257,7 @@ describe('Document', function () {
   });
 
   it('check OperationInfo type for subscribe path', function () {
-    const doc = Document.create<{
+    const doc = new Document<{
       num?: number;
       b: { c: Array<number>; d: { e: { fname: Array<number> } } };
       todos: Array<{

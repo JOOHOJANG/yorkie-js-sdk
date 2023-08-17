@@ -20,7 +20,6 @@ import { Text } from '@yorkie-js-sdk/src/document/json/text';
 import { Tree } from '@yorkie-js-sdk/src/document/json/tree';
 import { Counter } from '@yorkie-js-sdk/src/document/json/counter';
 import { CounterType } from '@yorkie-js-sdk/src/document/crdt/counter';
-import { converter } from '@yorkie-js-sdk/src/api/converter';
 
 export {
   Client,
@@ -32,12 +31,10 @@ export {
   ClientEventType,
   StatusChangedEvent,
   DocumentsChangedEvent,
-  PeersChangedEvent,
   StreamConnectionStatusChangedEvent,
   DocumentSyncedEvent,
   ClientOptions,
 } from '@yorkie-js-sdk/src/client/client';
-export { PresenceInfo } from '@yorkie-js-sdk/src/client/attachment';
 export {
   DocEventType,
   SnapshotEvent,
@@ -56,14 +53,18 @@ export {
   CompleteFn,
   Unsubscribe,
 } from '@yorkie-js-sdk/src/util/observable';
-export { TimeTicket } from '@yorkie-js-sdk/src/document/time/ticket';
-export { ActorID } from '@yorkie-js-sdk/src/document/time/actor_id';
 export {
-  TextChange,
-  TextChangeType,
-} from '@yorkie-js-sdk/src/document/crdt/text';
+  TimeTicket,
+  TimeTicketStruct,
+} from '@yorkie-js-sdk/src/document/time/ticket';
+export { ActorID } from '@yorkie-js-sdk/src/document/time/actor_id';
 export type {
   OperationInfo,
+  TextOperationInfo,
+  CounterOperationInfo,
+  ArrayOperationInfo,
+  ObjectOperationInfo,
+  TreeOperationInfo,
   AddOpInfo,
   IncreaseOpInfo,
   RemoveOpInfo,
@@ -74,12 +75,11 @@ export type {
   SelectOpInfo,
 } from '@yorkie-js-sdk/src/document/operation/operation';
 
-// TODO(hackerwins): ValueChange is missing in TextChange in the index.d.ts file
-// if not exported. We need to find a way to handle this without exporting the below.
-export { ValueChange } from '@yorkie-js-sdk/src/document/crdt/rga_tree_split';
 export {
   TreeChange,
   TreeChangeType,
+  CRDTTreeNodeIDStruct,
+  TreePosStructRange as TreeRangeStruct,
 } from '@yorkie-js-sdk/src/document/crdt/tree';
 
 export {
@@ -95,7 +95,11 @@ export {
 export { JSONObject } from '@yorkie-js-sdk/src/document/json/object';
 export { JSONArray } from '@yorkie-js-sdk/src/document/json/array';
 export { Counter } from '@yorkie-js-sdk/src/document/json/counter';
-export { Text } from '@yorkie-js-sdk/src/document/json/text';
+export {
+  Text,
+  TextPosStruct,
+  TextPosStructRange,
+} from '@yorkie-js-sdk/src/document/json/text';
 export {
   Tree,
   TreeNode,
@@ -103,7 +107,7 @@ export {
   TextNode,
 } from '@yorkie-js-sdk/src/document/json/tree';
 export { Change } from '@yorkie-js-sdk/src/document/change/change';
-export { converter };
+export { converter } from '@yorkie-js-sdk/src/api/converter';
 
 /**
  * The top-level yorkie namespace with additional properties.
@@ -124,7 +128,6 @@ const yorkie = {
   Tree,
   IntType: CounterType.IntegerCnt,
   LongType: CounterType.LongCnt,
-  converter,
 };
 
 export default yorkie;

@@ -23,6 +23,7 @@ import {
   InitialTimeTicket,
   MaxTimeTicket,
   TimeTicket,
+  TimeTicketStruct,
 } from '@yorkie-js-sdk/src/document/time/ticket';
 
 export interface ValueChange<T> {
@@ -36,6 +37,24 @@ interface RGATreeSplitValue {
   length: number;
   substring(indexStart: number, indexEnd?: number): RGATreeSplitValue;
 }
+
+/**
+ * `RGATreeSplitPosStruct` is a structure represents the meta data of the node pos.
+ * It is used to serialize and deserialize the node pos.
+ */
+export type RGATreeSplitPosStruct = {
+  id: RGATreeSplitNodeIDStruct;
+  relativeOffset: number;
+};
+
+/**
+ * `RGATreeSplitNodeIDStruct` is a structure represents the meta data of the node id.
+ * It is used to serialize and deserialize the node id.
+ */
+export type RGATreeSplitNodeIDStruct = {
+  createdAt: TimeTicketStruct;
+  offset: number;
+};
 
 /**
  * `RGATreeSplitNodeID` is an ID of RGATreeSplitNode.
@@ -54,6 +73,18 @@ export class RGATreeSplitNodeID {
    */
   public static of(createdAt: TimeTicket, offset: number): RGATreeSplitNodeID {
     return new RGATreeSplitNodeID(createdAt, offset);
+  }
+
+  /**
+   * `fromStruct` creates a instance of RGATreeSplitNodeID from the struct.
+   */
+  public static fromStruct(
+    struct: RGATreeSplitNodeIDStruct,
+  ): RGATreeSplitNodeID {
+    return RGATreeSplitNodeID.of(
+      TimeTicket.fromStruct(struct.createdAt),
+      struct.offset,
+    );
   }
 
   /**
@@ -95,20 +126,37 @@ export class RGATreeSplitNodeID {
   }
 
   /**
-   * `getStructureAsString` returns a String containing
+   * `toStruct` returns the structure of this node id.
+   */
+  public toStruct(): RGATreeSplitNodeIDStruct {
+    return {
+      createdAt: this.createdAt.toStruct(),
+      offset: this.offset,
+    };
+  }
+
+  /**
+   * `toTestString` returns a String containing
    * the meta data of the node id for debugging purpose.
    */
-  public getStructureAsString(): string {
-    return `${this.createdAt.getStructureAsString()}:${this.offset}`;
+  public toTestString(): string {
+    return `${this.createdAt.toTestString()}:${this.offset}`;
+  }
+
+  /**
+   * `toIDString` returns a string that can be used as an ID for this node id.
+   */
+  public toIDString(): string {
+    return `${this.createdAt.toIDString()}:${this.offset}`;
   }
 }
 
 const InitialRGATreeSplitNodeID = RGATreeSplitNodeID.of(InitialTimeTicket, 0);
 
 /**
- * `RGATreeSplitNodePos` is the position of the text inside the node.
+ * `RGATreeSplitPos` is the position of the text inside the node.
  */
-export class RGATreeSplitNodePos {
+export class RGATreeSplitPos {
   private id: RGATreeSplitNodeID;
   private relativeOffset: number;
 
@@ -118,31 +166,39 @@ export class RGATreeSplitNodePos {
   }
 
   /**
-   * `of` creates a instance of RGATreeSplitNodePos.
+   * `of` creates a instance of RGATreeSplitPos.
    */
   public static of(
     id: RGATreeSplitNodeID,
     relativeOffset: number,
-  ): RGATreeSplitNodePos {
-    return new RGATreeSplitNodePos(id, relativeOffset);
+  ): RGATreeSplitPos {
+    return new RGATreeSplitPos(id, relativeOffset);
   }
 
   /**
-   * `getID` returns the ID of this RGATreeSplitNodePos.
+   * `fromStruct` creates a instance of RGATreeSplitPos from the struct.
+   */
+  public static fromStruct(struct: RGATreeSplitPosStruct): RGATreeSplitPos {
+    const id = RGATreeSplitNodeID.fromStruct(struct.id);
+    return RGATreeSplitPos.of(id, struct.relativeOffset);
+  }
+
+  /**
+   * `getID` returns the ID of this RGATreeSplitPos.
    */
   public getID(): RGATreeSplitNodeID {
     return this.id;
   }
 
   /**
-   * `getRelativeOffset` returns the relative offset of this RGATreeSplitNodePos.
+   * `getRelativeOffset` returns the relative offset of this RGATreeSplitPos.
    */
   public getRelativeOffset(): number {
     return this.relativeOffset;
   }
 
   /**
-   * `getAbsoluteID` returns the absolute id of this RGATreeSplitNodePos.
+   * `getAbsoluteID` returns the absolute id of this RGATreeSplitPos.
    */
   public getAbsoluteID(): RGATreeSplitNodeID {
     return RGATreeSplitNodeID.of(
@@ -152,17 +208,27 @@ export class RGATreeSplitNodePos {
   }
 
   /**
-   *`getStructureAsString` returns a String containing
+   *`toTestString` returns a String containing
    * the meta data of the position for debugging purpose.
    */
-  public getStructureAsString(): string {
-    return `${this.id.getStructureAsString()}:${this.relativeOffset}`;
+  public toTestString(): string {
+    return `${this.id.toTestString()}:${this.relativeOffset}`;
+  }
+
+  /**
+   * `toStruct` returns the structure of this node pos.
+   */
+  public toStruct(): RGATreeSplitPosStruct {
+    return {
+      id: this.id.toStruct(),
+      relativeOffset: this.relativeOffset,
+    };
   }
 
   /**
    * `equals` returns whether given pos equal to this pos or not.
    */
-  public equals(other: RGATreeSplitNodePos): boolean {
+  public equals(other: RGATreeSplitPos): boolean {
     if (!this.id.equals(other.id)) {
       return false;
     }
@@ -174,7 +240,7 @@ export class RGATreeSplitNodePos {
 /**
  * @internal
  */
-export type RGATreeSplitNodeRange = [RGATreeSplitNodePos, RGATreeSplitNodePos];
+export type RGATreeSplitPosRange = [RGATreeSplitPos, RGATreeSplitPos];
 
 /**
  * `RGATreeSplitNode` is a node of RGATreeSplit.
@@ -388,12 +454,12 @@ export class RGATreeSplitNode<
   }
 
   /**
-   * `createRange` creates ranges of RGATreeSplitNodePos.
+   * `createRange` creates ranges of RGATreeSplitPos.
    */
-  public createRange(): RGATreeSplitNodeRange {
+  public createPosRange(): RGATreeSplitPosRange {
     return [
-      RGATreeSplitNodePos.of(this.id, 0),
-      RGATreeSplitNodePos.of(this.id, this.getLength()),
+      RGATreeSplitPos.of(this.id, 0),
+      RGATreeSplitPos.of(this.id, this.getLength()),
     ];
   }
 
@@ -405,11 +471,11 @@ export class RGATreeSplitNode<
   }
 
   /**
-   * `getStructureAsString` returns a String containing
+   * `toTestString` returns a String containing
    * the meta data of the node for debugging purpose.
    */
-  public getStructureAsString(): string {
-    return `${this.id.getStructureAsString()} ${this.value ? this.value : ''}`;
+  public toTestString(): string {
+    return `${this.id.toTestString()} ${this.value ? this.value : ''}`;
   }
 
   private splitValue(offset: number): T {
@@ -460,14 +526,14 @@ export class RGATreeSplit<T extends RGATreeSplitValue> {
    * @param editedAt - edited time
    * @param value - value
    * @param latestCreatedAtMapByActor - latestCreatedAtMapByActor
-   * @returns `[RGATreeSplitNodePos, Map<string, TimeTicket>, Array<Change>]`
+   * @returns `[RGATreeSplitPos, Map<string, TimeTicket>, Array<Change>]`
    */
   public edit(
-    range: RGATreeSplitNodeRange,
+    range: RGATreeSplitPosRange,
     editedAt: TimeTicket,
     value?: T,
     latestCreatedAtMapByActor?: Map<string, TimeTicket>,
-  ): [RGATreeSplitNodePos, Map<string, TimeTicket>, Array<ValueChange<T>>] {
+  ): [RGATreeSplitPos, Map<string, TimeTicket>, Array<ValueChange<T>>] {
     // 01. split nodes with from and to
     const [toLeft, toRight] = this.findNodeWithSplit(range[1], editedAt);
     const [fromLeft, fromRight] = this.findNodeWithSplit(range[0], editedAt);
@@ -478,11 +544,11 @@ export class RGATreeSplit<T extends RGATreeSplitValue> {
       this.deleteNodes(nodesToDelete, editedAt, latestCreatedAtMapByActor);
 
     const caretID = toRight ? toRight.getID() : toLeft.getID();
-    let caretPos = RGATreeSplitNodePos.of(caretID, 0);
+    let caretPos = RGATreeSplitPos.of(caretID, 0);
 
     // 03. insert a new node
     if (value) {
-      const idx = this.findIdxFromNodePos(fromLeft.createRange()[1], true);
+      const idx = this.posToIndex(fromLeft.createPosRange()[1], true);
 
       const inserted = this.insertAfter(
         fromLeft,
@@ -500,7 +566,7 @@ export class RGATreeSplit<T extends RGATreeSplitValue> {
         });
       }
 
-      caretPos = RGATreeSplitNodePos.of(
+      caretPos = RGATreeSplitPos.of(
         inserted.getID(),
         inserted.getContentLength(),
       );
@@ -515,39 +581,33 @@ export class RGATreeSplit<T extends RGATreeSplitValue> {
   }
 
   /**
-   * `findNodePos` finds RGATreeSplitNodePos of given offset.
+   * `indexToPos` finds RGATreeSplitPos of given offset.
    */
-  public findNodePos(idx: number): RGATreeSplitNodePos {
+  public indexToPos(idx: number): RGATreeSplitPos {
     const [node, offset] = this.treeByIndex.find(idx);
     const splitNode = node as RGATreeSplitNode<T>;
-    return RGATreeSplitNodePos.of(splitNode.getID(), offset);
+    return RGATreeSplitPos.of(splitNode.getID(), offset);
   }
 
   /**
    * `findIndexesFromRange` finds indexes based on range.
    */
-  public findIndexesFromRange(range: RGATreeSplitNodeRange): [number, number] {
+  public findIndexesFromRange(range: RGATreeSplitPosRange): [number, number] {
     const [fromPos, toPos] = range;
-    return [
-      this.findIdxFromNodePos(fromPos, false),
-      this.findIdxFromNodePos(toPos, true),
-    ];
+    return [this.posToIndex(fromPos, false), this.posToIndex(toPos, true)];
   }
 
   /**
-   * `findIdxFromNodePos` finds index based on node position.
+   * `posToIndex` converts the given position to index.
    */
-  public findIdxFromNodePos(
-    pos: RGATreeSplitNodePos,
-    preferToLeft: boolean,
-  ): number {
+  public posToIndex(pos: RGATreeSplitPos, preferToLeft: boolean): number {
     const absoluteID = pos.getAbsoluteID();
     const node = preferToLeft
       ? this.findFloorNodePreferToLeft(absoluteID)
       : this.findFloorNode(absoluteID);
     if (!node) {
       logger.fatal(
-        `the node of the given id should be found: ${absoluteID.getStructureAsString()}`,
+        `the node of the given id should be found: ${absoluteID.toTestString()}`,
       );
     }
     const index = this.treeByIndex.indexOf(node!);
@@ -635,18 +695,18 @@ export class RGATreeSplit<T extends RGATreeSplitValue> {
   }
 
   /**
-   * `getStructureAsString` returns a String containing the meta data of the node
+   * `toTestString` returns a String containing the meta data of the node
    * for debugging purpose.
    */
-  public getStructureAsString(): string {
+  public toTestString(): string {
     const result = [];
 
     let node: RGATreeSplitNode<T> | undefined = this.head;
     while (node) {
       if (node.isRemoved()) {
-        result.push(`{${node.getStructureAsString()}}`);
+        result.push(`{${node.toTestString()}}`);
       } else {
-        result.push(`[${node.getStructureAsString()}]`);
+        result.push(`[${node.toTestString()}]`);
       }
 
       node = node.getNext();
@@ -678,7 +738,7 @@ export class RGATreeSplit<T extends RGATreeSplitValue> {
    * `findNodeWithSplit` splits and return nodes of the given position.
    */
   public findNodeWithSplit(
-    pos: RGATreeSplitNodePos,
+    pos: RGATreeSplitPos,
     editedAt: TimeTicket,
   ): [RGATreeSplitNode<T>, RGATreeSplitNode<T>] {
     const absoluteID = pos.getAbsoluteID();
@@ -700,7 +760,7 @@ export class RGATreeSplit<T extends RGATreeSplitValue> {
     let node = this.findFloorNode(id);
     if (!node) {
       logger.fatal(
-        `the node of the given id should be found: ${id.getStructureAsString()}`,
+        `the node of the given id should be found: ${id.toTestString()}`,
       );
     }
 
@@ -810,7 +870,7 @@ export class RGATreeSplit<T extends RGATreeSplitValue> {
       ) {
         createdAtMapByActor.set(actorID, node.getID().getCreatedAt());
       }
-      removedNodeMap.set(node.getID().getStructureAsString(), node);
+      removedNodeMap.set(node.getID().toIDString(), node);
       node.remove(editedAt);
     }
     // Finally remove index nodes of tombstones.
@@ -881,11 +941,11 @@ export class RGATreeSplit<T extends RGATreeSplitValue> {
       }
 
       [fromIdx] = this.findIndexesFromRange(
-        leftBoundary!.getNext()!.createRange(),
+        leftBoundary!.getNext()!.createPosRange(),
       );
       if (rightBoundary) {
         [, toIdx] = this.findIndexesFromRange(
-          rightBoundary.getPrev()!.createRange(),
+          rightBoundary.getPrev()!.createPosRange(),
         );
       } else {
         toIdx = this.treeByIndex.length;
@@ -928,16 +988,16 @@ export class RGATreeSplit<T extends RGATreeSplitValue> {
   }
 
   /**
-   * `purgeTextNodesWithGarbage` physically purges nodes that have been removed.
+   * `purgeRemovedNodesBefore` physically purges nodes that have been removed.
    */
-  public purgeTextNodesWithGarbage(ticket: TimeTicket): number {
+  public purgeRemovedNodesBefore(ticket: TimeTicket): number {
     let count = 0;
     for (const [, node] of this.removedNodeMap) {
       if (node.getRemovedAt() && ticket.compare(node.getRemovedAt()!) >= 0) {
         this.treeByIndex.delete(node);
         this.purge(node);
         this.treeByID.remove(node.getID());
-        this.removedNodeMap.delete(node.getID().getStructureAsString());
+        this.removedNodeMap.delete(node.getID().toIDString());
         count++;
       }
     }
@@ -981,13 +1041,13 @@ export class RGATreeSplit<T extends RGATreeSplitValue> {
  * `Selection` represents the selection of text range in the editor.
  */
 export class Selection {
-  private from: RGATreeSplitNodePos;
-  private to: RGATreeSplitNodePos;
+  private from: RGATreeSplitPos;
+  private to: RGATreeSplitPos;
   private updatedAt: TimeTicket;
 
   constructor(
-    from: RGATreeSplitNodePos,
-    to: RGATreeSplitNodePos,
+    from: RGATreeSplitPos,
+    to: RGATreeSplitPos,
     updatedAt: TimeTicket,
   ) {
     this.from = from;
@@ -999,7 +1059,7 @@ export class Selection {
    * `of` creates a new instance of Selection.
    */
   public static of(
-    range: RGATreeSplitNodeRange,
+    range: RGATreeSplitPosRange,
     updatedAt: TimeTicket,
   ): Selection {
     return new Selection(range[0], range[1], updatedAt);

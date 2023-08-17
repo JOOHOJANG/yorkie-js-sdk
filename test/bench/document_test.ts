@@ -23,7 +23,7 @@ import { Counter } from '@yorkie-js-sdk/src/yorkie';
 import { CounterType } from '@yorkie-js-sdk/src/document/crdt/counter';
 
 const benchmarkTextEditGC = (size: number) => {
-  const doc = Document.create<{ text: Text }>('test-doc');
+  const doc = new Document<{ text: Text }>('test-doc');
   assert.equal('{}', doc.toJSON());
   // 01. initial
   doc.update((root) => {
@@ -47,7 +47,7 @@ const benchmarkTextEditGC = (size: number) => {
   assert.equal(empty, doc.getGarbageLen());
 };
 const benchmarkTextSplitGC = (size: number) => {
-  const doc = Document.create<{ text: Text }>('test-doc');
+  const doc = new Document<{ text: Text }>('test-doc');
   assert.equal('{}', doc.toJSON());
 
   // 01. initial
@@ -70,7 +70,7 @@ const benchmarkTextSplitGC = (size: number) => {
   assert.equal(empty, doc.getGarbageLen());
 };
 const benchmarkTextDeleteAll = (size: number) => {
-  const doc = Document.create<{ text: Text }>('test-doc');
+  const doc = new Document<{ text: Text }>('test-doc');
   doc.update((root) => {
     root.text = new Text();
   }, 'initialize');
@@ -87,7 +87,7 @@ const benchmarkTextDeleteAll = (size: number) => {
   assert.equal(doc.getRoot().text.toString(), '');
 };
 const benchmarkText = (size: number) => {
-  const doc = Document.create<{ text: Text }>('test-doc');
+  const doc = new Document<{ text: Text }>('test-doc');
 
   doc.update((root) => {
     root.text = new Text();
@@ -98,7 +98,7 @@ const benchmarkText = (size: number) => {
   });
 };
 const benchmarkCounter = (size: number) => {
-  const doc = Document.create<{ counter: Counter }>('test-doc');
+  const doc = new Document<{ counter: Counter }>('test-doc');
 
   doc.update((root) => {
     root.counter = new Counter(CounterType.IntegerCnt, 0);
@@ -108,7 +108,7 @@ const benchmarkCounter = (size: number) => {
   });
 };
 const benchmarkObject = (size: number) => {
-  const doc = Document.create<{ k1: number }>('test-doc');
+  const doc = new Document<{ k1: number }>('test-doc');
 
   doc.update((root) => {
     for (let i = 0; i < size; i++) {
@@ -117,7 +117,7 @@ const benchmarkObject = (size: number) => {
   });
 };
 const benchmarkArray = (size: number) => {
-  const doc = Document.create<{ k1: JSONArray<number> }>('test-doc');
+  const doc = new Document<{ k1: JSONArray<number> }>('test-doc');
 
   doc.update((root) => {
     root.k1 = [];
@@ -128,7 +128,7 @@ const benchmarkArray = (size: number) => {
   });
 };
 const benchmarkArrayGC = (size: number) => {
-  const doc = Document.create<{ k1?: JSONArray<number> }>('test-doc');
+  const doc = new Document<{ k1?: JSONArray<number> }>('test-doc');
 
   doc.update((root) => {
     root.k1 = [];
@@ -148,7 +148,7 @@ const tests = [
   {
     name: 'Document#constructor',
     run: (): void => {
-      const doc = Document.create<{ text: JSONArray<string> }>(`test-doc`);
+      const doc = new Document<{ text: JSONArray<string> }>(`test-doc`);
       assert.equal('{}', doc.toJSON());
       assert.equal(doc.getCheckpoint(), InitialCheckpoint);
       assert.isFalse(doc.hasLocalChanges());
@@ -157,7 +157,7 @@ const tests = [
   {
     name: 'Document#status',
     run: (): void => {
-      const doc = Document.create<{ text: JSONArray<string> }>(`test-doc`);
+      const doc = new Document<{ text: JSONArray<string> }>(`test-doc`);
       assert.equal(doc.getStatus(), DocumentStatus.Detached);
       doc.setStatus(DocumentStatus.Attached);
       assert.equal(doc.getStatus(), DocumentStatus.Attached);
@@ -166,9 +166,9 @@ const tests = [
   {
     name: 'Document#equals',
     run: (): void => {
-      const doc1 = Document.create<{ text: string }>('d1');
-      const doc2 = Document.create<{ text: string }>('d2');
-      const doc3 = Document.create<{ text: string }>('d3');
+      const doc1 = new Document<{ text: string }>('d1');
+      const doc2 = new Document<{ text: string }>('d2');
+      const doc3 = new Document<{ text: string }>('d3');
       doc1.update((root) => {
         root.text = 'value';
       }, 'update text');
@@ -180,7 +180,7 @@ const tests = [
     name: 'Document#nested update',
     run: (): void => {
       const expected = `{"k1":"v1","k2":{"k4":"v4"},"k3":["v5","v6"]}`;
-      const doc = Document.create<{
+      const doc = new Document<{
         k1: string;
         k2: { k4: string };
         k3: Array<string>;
@@ -199,7 +199,7 @@ const tests = [
   {
     name: 'Document#delete',
     run: (): void => {
-      const doc = Document.create<{
+      const doc = new Document<{
         k1?: string;
         k2?: { k4: string };
         k3?: Array<string>;
@@ -223,7 +223,7 @@ const tests = [
   {
     name: 'Document#object',
     run: (): void => {
-      const doc = Document.create<{ k1: string }>('test-doc');
+      const doc = new Document<{ k1: string }>('test-doc');
       doc.update((root) => {
         root.k1 = 'v1';
         root.k1 = 'v2';
@@ -234,7 +234,7 @@ const tests = [
   {
     name: 'Document#array',
     run: (): void => {
-      const doc = Document.create<{ k1: JSONArray<number> }>('test-doc');
+      const doc = new Document<{ k1: JSONArray<number> }>('test-doc');
 
       doc.update((root) => {
         root.k1 = [];
@@ -246,7 +246,7 @@ const tests = [
         assert.equal(root.k1.length, 3);
         assert.equal(
           '[1:000000000000000000000000:2:1][1:000000000000000000000000:3:2][1:000000000000000000000000:4:3]',
-          root.k1.getStructureAsString!(),
+          root.k1.toTestString!(),
         );
 
         root.k1.splice(1, 1);
@@ -254,7 +254,7 @@ const tests = [
         assert.equal(root.k1.length, 2);
         assert.equal(
           '[1:000000000000000000000000:2:1]{1:000000000000000000000000:3:2}[1:000000000000000000000000:4:3]',
-          root.k1.getStructureAsString!(),
+          root.k1.toTestString!(),
         );
 
         const first = root.k1.getElementByIndex!(0);
@@ -263,7 +263,7 @@ const tests = [
         assert.equal(root.k1.length, 3);
         assert.equal(
           '[1:000000000000000000000000:2:1][1:000000000000000000000000:6:2]{1:000000000000000000000000:3:2}[1:000000000000000000000000:4:3]',
-          root.k1.getStructureAsString!(),
+          root.k1.toTestString!(),
         );
 
         const third = root.k1.getElementByIndex!(2);
@@ -272,7 +272,7 @@ const tests = [
         assert.equal(root.k1.length, 4);
         assert.equal(
           '[1:000000000000000000000000:2:1][1:000000000000000000000000:6:2]{1:000000000000000000000000:3:2}[1:000000000000000000000000:4:3][1:000000000000000000000000:7:4]',
-          root.k1.getStructureAsString!(),
+          root.k1.toTestString!(),
         );
 
         for (let i = 0; i < root.k1.length; i++) {
@@ -284,7 +284,7 @@ const tests = [
   {
     name: 'Document#text',
     run: (): void => {
-      const doc = Document.create<{ k1: Text }>('test-doc');
+      const doc = new Document<{ k1: Text }>('test-doc');
       doc.update((root) => {
         root.k1 = new Text();
         root.k1.edit(0, 0, 'ABCD');
@@ -296,26 +296,26 @@ const tests = [
       );
       assert.equal(
         `[0:00:0:0 ][1:00:2:0 A][1:00:3:0 12]{1:00:2:1 BC}[1:00:2:3 D]`,
-        doc.getRoot().k1.getStructureAsString(),
+        doc.getRoot().k1.toTestString(),
       );
       doc.update((root) => {
-        const [pos1] = root.k1.createRange(0, 0);
-        assert.equal('0:00:0:0:0', pos1.getStructureAsString());
-        const [pos2] = root.k1.createRange(1, 1);
-        assert.equal('1:00:2:0:1', pos2.getStructureAsString());
-        const [pos3] = root.k1.createRange(2, 2);
-        assert.equal('1:00:3:0:1', pos3.getStructureAsString());
-        const [pos4] = root.k1.createRange(3, 3);
-        assert.equal('1:00:3:0:2', pos4.getStructureAsString());
-        const [pos5] = root.k1.createRange(4, 4);
-        assert.equal('1:00:2:3:1', pos5.getStructureAsString());
+        const [pos1] = root.k1.createRangeForTest(0, 0);
+        assert.equal('0:00:0:0:0', pos1.toTestString());
+        const [pos2] = root.k1.createRangeForTest(1, 1);
+        assert.equal('1:00:2:0:1', pos2.toTestString());
+        const [pos3] = root.k1.createRangeForTest(2, 2);
+        assert.equal('1:00:3:0:1', pos3.toTestString());
+        const [pos4] = root.k1.createRangeForTest(3, 3);
+        assert.equal('1:00:3:0:2', pos4.toTestString());
+        const [pos5] = root.k1.createRangeForTest(4, 4);
+        assert.equal('1:00:2:3:1', pos5.toTestString());
       });
     },
   },
   {
     name: 'Document#text composition test',
     run: (): void => {
-      const doc = Document.create<{ k1: Text }>('test-doc');
+      const doc = new Document<{ k1: Text }>('test-doc');
       doc.update((root) => {
         root.k1 = new Text();
         root.k1.edit(0, 0, 'ㅎ');
@@ -331,13 +331,13 @@ const tests = [
   {
     name: 'Document#rich text test',
     run: (): void => {
-      const doc = Document.create<{ k1: Text }>('test-doc');
+      const doc = new Document<{ k1: Text }>('test-doc');
       doc.update((root) => {
         root.k1 = new Text();
         root.k1.edit(0, 0, 'Hello world');
         assert.equal(
           '[0:00:0:0 ][1:00:2:0 Hello world]',
-          root.k1.getStructureAsString(),
+          root.k1.toTestString(),
         );
       });
       assert.equal('{"k1":[{"val":"Hello world"}]}', doc.toJSON());
@@ -345,7 +345,7 @@ const tests = [
         root.k1.setStyle(0, 5, { b: '1' });
         assert.equal(
           '[0:00:0:0 ][1:00:2:0 Hello][1:00:2:5  world]',
-          root.k1.getStructureAsString(),
+          root.k1.toTestString(),
         );
       });
       assert.equal(
@@ -356,12 +356,12 @@ const tests = [
         root.k1.setStyle(0, 5, { b: '1' });
         assert.equal(
           '[0:00:0:0 ][1:00:2:0 Hello][1:00:2:5  world]',
-          root.k1.getStructureAsString(),
+          root.k1.toTestString(),
         );
         root.k1.setStyle(3, 5, { i: '1' });
         assert.equal(
           '[0:00:0:0 ][1:00:2:0 Hel][1:00:2:3 lo][1:00:2:5  world]',
-          root.k1.getStructureAsString(),
+          root.k1.toTestString(),
         );
       });
       assert.equal(
@@ -372,7 +372,7 @@ const tests = [
         root.k1.edit(5, 11, ' yorkie');
         assert.equal(
           '[0:00:0:0 ][1:00:2:0 Hel][1:00:2:3 lo][4:00:1:0  yorkie]{1:00:2:5  world}',
-          root.k1.getStructureAsString(),
+          root.k1.toTestString(),
         );
       });
       assert.equal(
@@ -384,7 +384,7 @@ const tests = [
         assert(
           '[0:00:0:0 ][1:00:2:0 Hel][1:00:2:3 lo][5:00:1:0 ]' +
             '[4:00:1:0  yorkie]{1:00:2:5  world}',
-          root.k1.getStructureAsString(),
+          root.k1.toTestString(),
         );
       });
       assert.equal(
@@ -396,7 +396,7 @@ const tests = [
   {
     name: 'Document#counter test',
     run: (): void => {
-      const doc = Document.create<{ age: Counter; price: Counter }>('test-doc');
+      const doc = new Document<{ age: Counter; price: Counter }>('test-doc');
       const integer = 10;
       const long = 5;
       const uinteger = 100;

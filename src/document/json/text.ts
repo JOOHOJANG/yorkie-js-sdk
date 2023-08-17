@@ -16,14 +16,35 @@
 
 import { logger, LogLevel } from '@yorkie-js-sdk/src/util/logger';
 import { Indexable } from '@yorkie-js-sdk/src/document/document';
-import { TimeTicket } from '@yorkie-js-sdk/src/document/time/ticket';
+import {
+  TimeTicket,
+  TimeTicketStruct,
+} from '@yorkie-js-sdk/src/document/time/ticket';
 import { ChangeContext } from '@yorkie-js-sdk/src/document/change/context';
-import { RGATreeSplitNodeRange } from '@yorkie-js-sdk/src/document/crdt/rga_tree_split';
+import {
+  RGATreeSplitPosRange,
+  RGATreeSplitPos,
+} from '@yorkie-js-sdk/src/document/crdt/rga_tree_split';
 import { CRDTText, TextValueType } from '@yorkie-js-sdk/src/document/crdt/text';
 import { EditOperation } from '@yorkie-js-sdk/src/document/operation/edit_operation';
 import { StyleOperation } from '@yorkie-js-sdk/src/document/operation/style_operation';
 import { SelectOperation } from '@yorkie-js-sdk/src/document/operation/select_operation';
 import { stringifyObjectValues } from '@yorkie-js-sdk/src/util/object';
+
+/**
+ * `TextPosStruct` represents the structure of RGATreeSplitPos.
+ * It is used to serialize and deserialize the RGATreeSplitPos.
+ */
+export type TextPosStruct = {
+  id: { createdAt: TimeTicketStruct; offset: number };
+  relativeOffset: number;
+};
+
+/**
+ * `TextPosStructRange` represents the structure of RGATreeSplitPosRange.
+ * It is used to serialize and deserialize the RGATreeSplitPosRange.
+ */
+export type TextPosStructRange = [TextPosStruct, TextPosStruct];
 
 /**
  * `Text` is an extended data type for the contents of a text editor.
@@ -61,26 +82,26 @@ export class Text<A extends Indexable = Indexable> {
     toIdx: number,
     content: string,
     attributes?: A,
-  ): boolean {
+  ): [number, number] | undefined {
     if (!this.context || !this.text) {
       logger.fatal('it is not initialized yet');
-      return false;
+      return;
     }
 
     if (fromIdx > toIdx) {
       logger.fatal('from should be less than or equal to to');
-      return false;
+      return;
     }
 
-    const range = this.text.createRange(fromIdx, toIdx);
+    const range = this.text.indexRangeToPosRange(fromIdx, toIdx);
     if (logger.isEnabled(LogLevel.Debug)) {
       logger.debug(
-        `EDIT: f:${fromIdx}->${range[0].getStructureAsString()}, t:${toIdx}->${range[1].getStructureAsString()} c:${content}`,
+        `EDIT: f:${fromIdx}->${range[0].toTestString()}, t:${toIdx}->${range[1].toTestString()} c:${content}`,
       );
     }
     const attrs = attributes ? stringifyObjectValues(attributes) : undefined;
     const ticket = this.context.issueTimeTicket();
-    const [maxCreatedAtMapByActor] = this.text.edit(
+    const [maxCreatedAtMapByActor, , rangeAfterEdit] = this.text.edit(
       range,
       content,
       ticket,
@@ -100,23 +121,23 @@ export class Text<A extends Indexable = Indexable> {
     );
 
     if (!range[0].equals(range[1])) {
-      this.context.registerRemovedNodeTextElement(this.text);
+      this.context.registerElementHasRemovedNodes(this.text);
     }
 
-    return true;
+    return this.text.findIndexesFromRange(rangeAfterEdit);
   }
 
   /**
    * `delete` deletes the text in the given range.
    */
-  delete(fromIdx: number, toIdx: number): boolean {
+  delete(fromIdx: number, toIdx: number): [number, number] | undefined {
     return this.edit(fromIdx, toIdx, '');
   }
 
   /**
    * `empty` makes the text empty.
    */
-  empty(): boolean {
+  empty(): [number, number] | undefined {
     return this.edit(0, this.length, '');
   }
 
@@ -134,10 +155,10 @@ export class Text<A extends Indexable = Indexable> {
       return false;
     }
 
-    const range = this.text.createRange(fromIdx, toIdx);
+    const range = this.text.indexRangeToPosRange(fromIdx, toIdx);
     if (logger.isEnabled(LogLevel.Debug)) {
       logger.debug(
-        `STYL: f:${fromIdx}->${range[0].getStructureAsString()}, t:${toIdx}->${range[1].getStructureAsString()} a:${JSON.stringify(
+        `STYL: f:${fromIdx}->${range[0].toTestString()}, t:${toIdx}->${range[1].toTestString()} a:${JSON.stringify(
           attributes,
         )}`,
       );
@@ -169,10 +190,10 @@ export class Text<A extends Indexable = Indexable> {
       return false;
     }
 
-    const range = this.text.createRange(fromIdx, toIdx);
+    const range = this.text.indexRangeToPosRange(fromIdx, toIdx);
     if (logger.isEnabled(LogLevel.Debug)) {
       logger.debug(
-        `SELT: f:${fromIdx}->${range[0].getStructureAsString()}, t:${toIdx}->${range[1].getStructureAsString()}`,
+        `SELT: f:${fromIdx}->${range[0].toTestString()}, t:${toIdx}->${range[1].toTestString()}`,
       );
     }
     const ticket = this.context.issueTimeTicket();
@@ -186,17 +207,48 @@ export class Text<A extends Indexable = Indexable> {
   }
 
   /**
-   * `getStructureAsString` returns a String containing the meta data of the node
-   * for debugging purpose.
+   * `indexRangeToPosRange` returns TextRangeStruct of the given index range.
    */
-  getStructureAsString(): string {
+  indexRangeToPosRange(range: [number, number]): TextPosStructRange {
     if (!this.context || !this.text) {
       logger.fatal('it is not initialized yet');
       // @ts-ignore
       return;
     }
 
-    return this.text.getStructureAsString();
+    const textRange = this.text.indexRangeToPosRange(range[0], range[1]);
+    return [textRange[0].toStruct(), textRange[1].toStruct()];
+  }
+
+  /**
+   * `posRangeToIndexRange` returns indexes of the given TextRangeStruct.
+   */
+  posRangeToIndexRange(range: TextPosStructRange): [number, number] {
+    if (!this.context || !this.text) {
+      logger.fatal('it is not initialized yet');
+      // @ts-ignore
+      return;
+    }
+
+    const textRange = this.text.findIndexesFromRange([
+      RGATreeSplitPos.fromStruct(range[0]),
+      RGATreeSplitPos.fromStruct(range[1]),
+    ]);
+    return [textRange[0], textRange[1]];
+  }
+
+  /**
+   * `toTestString` returns a String containing the meta data of the node
+   * for debugging purpose.
+   */
+  toTestString(): string {
+    if (!this.context || !this.text) {
+      logger.fatal('it is not initialized yet');
+      // @ts-ignore
+      return;
+    }
+
+    return this.text.toTestString();
   }
 
   /**
@@ -240,15 +292,16 @@ export class Text<A extends Indexable = Indexable> {
   }
 
   /**
-   * `createRange` returns pair of RGATreeSplitNodePos of the given integer offsets.
+   * `createRangeForTest` returns pair of RGATreeSplitNodePos of the given indexes
+   * for testing purpose.
    */
-  createRange(fromIdx: number, toIdx: number): RGATreeSplitNodeRange {
+  createRangeForTest(fromIdx: number, toIdx: number): RGATreeSplitPosRange {
     if (!this.context || !this.text) {
       logger.fatal('it is not initialized yet');
       // @ts-ignore
       return;
     }
 
-    return this.text.createRange(fromIdx, toIdx);
+    return this.text.indexRangeToPosRange(fromIdx, toIdx);
   }
 }

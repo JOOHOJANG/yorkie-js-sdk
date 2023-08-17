@@ -31,38 +31,81 @@ export type OperationInfo =
   | ObjectOperationInfo
   | TreeOperationInfo;
 
+/**
+ * `TextOperationInfo` represents the OperationInfo for the yorkie.Text.
+ */
 export type TextOperationInfo = EditOpInfo | StyleOpInfo | SelectOpInfo;
+
+/**
+ * `CounterOperationInfo` represents the OperationInfo for the yorkie.Counter.
+ */
 export type CounterOperationInfo = IncreaseOpInfo;
+
+/**
+ * `ArrayOperationInfo` represents the OperationInfo for the JSONArray.
+ */
 export type ArrayOperationInfo = AddOpInfo | RemoveOpInfo | MoveOpInfo;
+
+/**
+ * `ObjectOperationInfo` represents the OperationInfo for the JSONObject.
+ */
 export type ObjectOperationInfo = SetOpInfo | RemoveOpInfo;
+
+/**
+ * `TreeOperationInfo` represents the OperationInfo for the yorkie.Tree.
+ */
 export type TreeOperationInfo = TreeEditOpInfo | TreeStyleOpInfo;
+
+/**
+ * `AddOpInfo` represents the information of the add operation.
+ */
 export type AddOpInfo = {
   type: 'add';
   path: string;
   index: number;
 };
+
+/**
+ * `MoveOpInfo` represents the information of the move operation.
+ */
 export type MoveOpInfo = {
   type: 'move';
   path: string;
   previousIndex: number;
   index: number;
 };
+
+/**
+ * `SetOpInfo` represents the information of the set operation.
+ */
 export type SetOpInfo = {
   type: 'set';
   path: string;
   key: string;
 };
+
+/**
+ * `RemoveOpInfo` represents the information of the remove operation.
+ */
 export type RemoveOpInfo = {
   type: 'remove';
   path: string;
   key?: string;
   index?: number;
 };
+
+/**
+ * `IncreaseOpInfo` represents the information of the increase operation.
+ */
 export type IncreaseOpInfo = {
   type: 'increase';
   path: string;
   value: number;
 };
+
+/**
+ * `EditOpInfo` represents the information of the edit operation.
+ */
 export type EditOpInfo = {
   type: 'edit';
   from: number;
@@ -73,6 +116,10 @@ export type EditOpInfo = {
     content: string;
   };
 };
+
+/**
+ * `StyleOpInfo` represents the information of the style operation.
+ */
 export type StyleOpInfo = {
   type: 'style';
   from: number;
@@ -82,12 +129,20 @@ export type StyleOpInfo = {
     attributes: Indexable;
   };
 };
+
+/**
+ * `SelectOpInfo` represents the information of the select operation.
+ */
 export type SelectOpInfo = {
   type: 'select';
   from: number;
   to: number;
   path: string;
 };
+
+/**
+ * `TreeEditOpInfo` represents the information of the tree edit operation.
+ */
 export type TreeEditOpInfo = {
   type: 'tree-edit';
   from: number;
@@ -97,6 +152,10 @@ export type TreeEditOpInfo = {
   value: TreeNode;
   path: string;
 };
+
+/**
+ * `TreeStyleOpInfo` represents the information of the tree style operation.
+ */
 export type TreeStyleOpInfo = {
   type: 'tree-style';
   from: number;
@@ -104,25 +163,6 @@ export type TreeStyleOpInfo = {
   fromPath: Array<number>;
   value: { [key: string]: any };
   path: string;
-};
-
-/**
- * `InternalOpInfo` represents the information of the operation. It is used to
- * internally and can be converted to `OperationInfo` to inform to the user.
- */
-export type InternalOpInfo =
-  | ToInternalOpInfo<AddOpInfo>
-  | ToInternalOpInfo<IncreaseOpInfo>
-  | ToInternalOpInfo<RemoveOpInfo>
-  | ToInternalOpInfo<SetOpInfo>
-  | ToInternalOpInfo<MoveOpInfo>
-  | ToInternalOpInfo<EditOpInfo>
-  | ToInternalOpInfo<StyleOpInfo>
-  | ToInternalOpInfo<SelectOpInfo>
-  | ToInternalOpInfo<TreeEditOpInfo>
-  | ToInternalOpInfo<TreeStyleOpInfo>;
-type ToInternalOpInfo<T extends OperationInfo> = Omit<T, 'path'> & {
-  element: TimeTicket;
 };
 
 /**
@@ -165,12 +205,12 @@ export abstract class Operation {
   public abstract getEffectedCreatedAt(): TimeTicket;
 
   /**
-   * `getStructureAsString` returns a string containing the meta data.
+   * `toTestString` returns a string containing the meta data for debugging purpose.
    */
-  public abstract getStructureAsString(): string;
+  public abstract toTestString(): string;
 
   /**
    * `execute` executes this operation on the given `CRDTRoot`.
    */
-  public abstract execute(root: CRDTRoot): Array<InternalOpInfo>;
+  public abstract execute(root: CRDTRoot): Array<OperationInfo>;
 }

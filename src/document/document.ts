@@ -16,6 +16,7 @@
 import Long from 'long';
 import { logger, LogLevel } from '@yorkie-js-sdk/src/util/logger';
 import { Code, YorkieError } from '@yorkie-js-sdk/src/util/error';
+import { deepcopy } from '@yorkie-js-sdk/src/util/object';
 import {
   Observer,
   Observable,
@@ -49,7 +50,6 @@ import {
 } from '@yorkie-js-sdk/src/document/change/checkpoint';
 import { TimeTicket } from '@yorkie-js-sdk/src/document/time/ticket';
 import {
-  InternalOpInfo,
   OperationInfo,
   ObjectOperationInfo,
   TextOperationInfo,
@@ -61,7 +61,10 @@ import { JSONObject } from '@yorkie-js-sdk/src/document/json/object';
 import { Counter } from '@yorkie-js-sdk/src/document/json/counter';
 import { Text } from '@yorkie-js-sdk/src/document/json/text';
 import { Tree } from '@yorkie-js-sdk/src/document/json/tree';
-import { Trie } from '../util/trie';
+import {
+  Presence,
+  PresenceChangeType,
+} from '@yorkie-js-sdk/src/document/presence/presence';
 
 /**
  * `DocumentStatus` represents the status of the document.
@@ -86,7 +89,7 @@ export enum DocumentStatus {
 }
 
 /**
- * `DocEventType` is document event types
+ * `DocEventType` represents the type of the event that occurs in `Document`.
  * @public
  */
 export enum DocEventType {
@@ -94,14 +97,37 @@ export enum DocEventType {
    * snapshot event type
    */
   Snapshot = 'snapshot',
+
   /**
    * local document change event type
    */
   LocalChange = 'local-change',
+
   /**
    * remote document change event type
    */
   RemoteChange = 'remote-change',
+
+  /**
+   * `Initialized` means that online clients have been loaded from the server.
+   */
+  Initialized = 'initialized',
+
+  /**
+   * `Watched` means that the client has established a connection with the server,
+   * enabling real-time synchronization.
+   */
+  Watched = 'watched',
+
+  /**
+   * `Unwatched` means that the connection has been disconnected.
+   */
+  Unwatched = 'unwatched',
+
+  /**
+   * `PresenceChanged` means that the presences of the client has updated.
+   */
+  PresenceChanged = 'presence-changed',
 }
 
 /**
@@ -110,10 +136,14 @@ export enum DocEventType {
  *
  * @public
  */
-export type DocEvent<T = OperationInfo> =
+export type DocEvent<P extends Indexable = Indexable, T = OperationInfo> =
   | SnapshotEvent
   | LocalChangeEvent<T>
-  | RemoteChangeEvent<T>;
+  | RemoteChangeEvent<T>
+  | InitializedEvent<P>
+  | WatchedEvent<P>
+  | UnwatchedEvent<P>
+  | PresenceChangedEvent<P>;
 
 /**
  * @internal
@@ -181,6 +211,27 @@ export interface RemoteChangeEvent<T = OperationInfo> extends BaseDocEvent {
    * RemoteChangeEvent type
    */
   value: ChangeInfo<T>;
+}
+
+export interface InitializedEvent<P extends Indexable> extends BaseDocEvent {
+  type: DocEventType.Initialized;
+  value: Array<{ clientID: ActorID; presence: P }>;
+}
+
+export interface WatchedEvent<P extends Indexable> extends BaseDocEvent {
+  type: DocEventType.Watched;
+  value: { clientID: ActorID; presence: P };
+}
+
+export interface UnwatchedEvent<P extends Indexable> extends BaseDocEvent {
+  type: DocEventType.Unwatched;
+  value: { clientID: ActorID; presence: P };
+}
+
+export interface PresenceChangedEvent<P extends Indexable>
+  extends BaseDocEvent {
+  type: DocEventType.PresenceChanged;
+  value: { clientID: ActorID; presence: P };
 }
 
 /**
@@ -334,41 +385,55 @@ type PathOf<TDocument, Depth extends number = 10> = PathOfInternal<
  *
  * @public
  */
-export class Document<T> {
+export class Document<T, P extends Indexable = Indexable> {
   private key: DocumentKey;
   private status: DocumentStatus;
-  private root: CRDTRoot;
-  private clone?: CRDTRoot;
+
   private changeID: ChangeID;
   private checkpoint: Checkpoint;
-  private localChanges: Array<Change>;
-  private eventStream: Observable<DocEvent>;
-  private eventStreamObserver!: Observer<DocEvent>;
+  private localChanges: Array<Change<P>>;
+
+  private root: CRDTRoot;
+  private clone?: {
+    root: CRDTRoot;
+    presences: Map<ActorID, P>;
+  };
+
+  private eventStream: Observable<DocEvent<P>>;
+  private eventStreamObserver!: Observer<DocEvent<P>>;
+
+  /**
+   * `onlineClients` is a set of client IDs that are currently online.
+   */
+  private onlineClients: Set<ActorID>;
+
+  /**
+   * `presences` is a map of client IDs to their presence information.
+   */
+  private presences: Map<ActorID, P>;
 
   constructor(key: string) {
     this.key = key;
     this.status = DocumentStatus.Detached;
     this.root = CRDTRoot.create();
+
     this.changeID = InitialChangeID;
     this.checkpoint = InitialCheckpoint;
     this.localChanges = [];
-    this.eventStream = createObservable<DocEvent>((observer) => {
+
+    this.eventStream = createObservable<DocEvent<P>>((observer) => {
       this.eventStreamObserver = observer;
     });
-  }
 
-  /**
-   * `create` creates a new instance of Document.
-   */
-  public static create<T>(key: string): Document<T> {
-    return new Document<T>(key);
+    this.onlineClients = new Set();
+    this.presences = new Map();
   }
 
   /**
    * `update` executes the given updater to update this document.
    */
   public update(
-    updater: (root: JSONObject<T>) => void,
+    updater: (root: JSONObject<T>, presence: Presence<P>) => void,
     message?: string,
   ): void {
     if (this.getStatus() === DocumentStatus.Removed) {
@@ -376,15 +441,27 @@ export class Document<T> {
     }
 
     this.ensureClone();
-    const context = ChangeContext.create(
+    const context = ChangeContext.create<P>(
       this.changeID.next(),
-      this.clone!,
+      this.clone!.root,
       message,
     );
+    const actorID = this.changeID.getActorID()!;
 
     try {
-      const proxy = createJSON<JSONObject<T>>(context, this.clone!.getObject());
-      updater(proxy);
+      const proxy = createJSON<JSONObject<T>>(
+        context,
+        this.clone!.root.getObject(),
+      );
+
+      if (!this.presences.has(actorID)) {
+        this.clone!.presences.set(actorID, {} as P);
+      }
+
+      updater(
+        proxy,
+        new Presence(context, this.clone!.presences.get(actorID)!),
+      );
     } catch (err) {
       // drop clone because it is contaminated.
       this.clone = undefined;
@@ -392,25 +469,33 @@ export class Document<T> {
       throw err;
     }
 
-    if (context.hasOperations()) {
+    if (context.hasChange()) {
       if (logger.isEnabled(LogLevel.Trivial)) {
         logger.trivial(`trying to update a local change: ${this.toJSON()}`);
       }
 
       const change = context.getChange();
-      const internalOpInfos = change.execute(this.root);
+      const opInfos = change.execute(this.root, this.presences);
       this.localChanges.push(change);
       this.changeID = change.getID();
 
-      if (this.eventStreamObserver) {
-        this.eventStreamObserver.next({
+      if (change.hasOperations()) {
+        this.publish({
           type: DocEventType.LocalChange,
           value: {
             message: change.getMessage() || '',
-            operations: internalOpInfos.map((internalOpInfo) =>
-              this.toOperationInfo(internalOpInfo),
-            ),
-            actor: change.getID().getActorID(),
+            operations: opInfos,
+            actor: actorID,
+          },
+        });
+      }
+
+      if (change.hasPresenceChange()) {
+        this.publish({
+          type: DocEventType.PresenceChanged,
+          value: {
+            clientID: actorID,
+            presence: this.getPresence(actorID)!,
           },
         });
       }
@@ -432,6 +517,38 @@ export class Document<T> {
   ): Unsubscribe;
   /**
    * `subscribe` registers a callback to subscribe to events on the document.
+   * The callback will be called when the clients watching the document
+   * establishe or update its presence.
+   */
+  public subscribe(
+    type: 'presence',
+    next: NextFn<DocEvent<P>>,
+    error?: ErrorFn,
+    complete?: CompleteFn,
+  ): Unsubscribe;
+  /**
+   * `subscribe` registers a callback to subscribe to events on the document.
+   * The callback will be called when the current client establishes or updates its presence.
+   */
+  public subscribe(
+    type: 'my-presence',
+    next: NextFn<DocEvent<P>>,
+    error?: ErrorFn,
+    complete?: CompleteFn,
+  ): Unsubscribe;
+  /**
+   * `subscribe` registers a callback to subscribe to events on the document.
+   * The callback will be called when the client establishes or terminates a connection,
+   * or updates its presence.
+   */
+  public subscribe(
+    type: 'others',
+    next: NextFn<DocEvent<P>>,
+    error?: ErrorFn,
+    complete?: CompleteFn,
+  ): Unsubscribe;
+  /**
+   * `subscribe` registers a callback to subscribe to events on the document.
    * The callback will be called when the targetPath or any of its nested values change.
    */
   public subscribe<
@@ -439,7 +556,7 @@ export class Document<T> {
     TOperationInfo extends OperationInfoOf<T, TPath>,
   >(
     targetPath: TPath,
-    next: NextFn<DocEvent<TOperationInfo>>,
+    next: NextFn<DocEvent<P, TOperationInfo>>,
     error?: ErrorFn,
     complete?: CompleteFn,
   ): Unsubscribe;
@@ -450,8 +567,8 @@ export class Document<T> {
     TPath extends PathOf<T>,
     TOperationInfo extends OperationInfoOf<T, TPath>,
   >(
-    arg1: TPath | string | Observer<DocEvent> | NextFn<DocEvent>,
-    arg2?: NextFn<DocEvent<TOperationInfo>> | NextFn<DocEvent> | ErrorFn,
+    arg1: TPath | string | Observer<DocEvent<P>> | NextFn<DocEvent<P>>,
+    arg2?: NextFn<DocEvent<P, TOperationInfo>> | NextFn<DocEvent<P>> | ErrorFn,
     arg3?: ErrorFn | CompleteFn,
     arg4?: CompleteFn,
   ): Unsubscribe {
@@ -459,10 +576,84 @@ export class Document<T> {
       if (typeof arg2 !== 'function') {
         throw new Error('Second argument must be a callback function');
       }
+      if (arg1 === 'presence') {
+        const callback = arg2 as NextFn<DocEvent<P>>;
+        return this.eventStream.subscribe(
+          (event) => {
+            if (
+              event.type !== DocEventType.Initialized &&
+              event.type !== DocEventType.Watched &&
+              event.type !== DocEventType.Unwatched &&
+              event.type !== DocEventType.PresenceChanged
+            ) {
+              return;
+            }
+
+            callback(event);
+          },
+          arg3,
+          arg4,
+        );
+      }
+      if (arg1 === 'my-presence') {
+        const callback = arg2 as NextFn<DocEvent<P>>;
+        return this.eventStream.subscribe(
+          (event) => {
+            if (
+              event.type !== DocEventType.Initialized &&
+              event.type !== DocEventType.Watched &&
+              event.type !== DocEventType.Unwatched &&
+              event.type !== DocEventType.PresenceChanged
+            ) {
+              return;
+            }
+
+            if (
+              event.type !== DocEventType.Initialized &&
+              event.value.clientID !== this.changeID.getActorID()
+            ) {
+              return;
+            }
+
+            callback(event);
+          },
+          arg3,
+          arg4,
+        );
+      }
+      if (arg1 === 'others') {
+        const callback = arg2 as NextFn<DocEvent<P>>;
+        return this.eventStream.subscribe(
+          (event) => {
+            if (
+              event.type !== DocEventType.Watched &&
+              event.type !== DocEventType.Unwatched &&
+              event.type !== DocEventType.PresenceChanged
+            ) {
+              return;
+            }
+
+            if (event.value.clientID !== this.changeID.getActorID()) {
+              callback(event);
+            }
+          },
+          arg3,
+          arg4,
+        );
+      }
       const target = arg1;
-      const callback = arg2 as NextFn<DocEvent>;
+      const callback = arg2 as NextFn<DocEvent<P>>;
       return this.eventStream.subscribe(
         (event) => {
+          if (
+            event.type === DocEventType.Initialized ||
+            event.type === DocEventType.Watched ||
+            event.type === DocEventType.Unwatched ||
+            event.type === DocEventType.PresenceChanged
+          ) {
+            return;
+          }
+
           if (event.type === DocEventType.Snapshot) {
             target === '$' && callback(event);
             return;
@@ -490,12 +681,37 @@ export class Document<T> {
       );
     }
     if (typeof arg1 === 'function') {
-      const nextFn = arg1 as any;
+      const callback = arg1 as NextFn<DocEvent<P>>;
       const error = arg2 as ErrorFn;
       const complete = arg3 as CompleteFn;
-      return this.eventStream.subscribe(nextFn, error, complete);
+      return this.eventStream.subscribe(
+        (event) => {
+          if (
+            event.type === DocEventType.Initialized ||
+            event.type === DocEventType.Watched ||
+            event.type === DocEventType.Unwatched ||
+            event.type === DocEventType.PresenceChanged
+          ) {
+            return;
+          }
+
+          callback(event);
+        },
+        error,
+        complete,
+      );
     }
     throw new Error(`"${arg1}" is not a valid`);
+  }
+
+  /**
+   * `publish` triggers an event in this document, which can be received by
+   * callback functions from document.subscribe().
+   */
+  public publish(event: DocEvent<P>) {
+    if (this.eventStreamObserver) {
+      this.eventStreamObserver.next(event);
+    }
   }
 
   private isSameElementOrChildOf(elem: string, parent: string): boolean {
@@ -517,7 +733,7 @@ export class Document<T> {
    * @param pack - change pack
    * @internal
    */
-  public applyChangePack(pack: ChangePack): void {
+  public applyChangePack(pack: ChangePack<P>): void {
     if (pack.hasSnapshot()) {
       this.applySnapshot(
         pack.getCheckpoint().getServerSeq(),
@@ -580,7 +796,10 @@ export class Document<T> {
       return;
     }
 
-    this.clone = this.root.deepcopy();
+    this.clone = {
+      root: this.root.deepcopy(),
+      presences: deepcopy(this.presences),
+    };
   }
 
   /**
@@ -589,7 +808,7 @@ export class Document<T> {
    *
    * @internal
    */
-  public createChangePack(): ChangePack {
+  public createChangePack(): ChangePack<P> {
     const changes = Array.from(this.localChanges);
     const checkpoint = this.checkpoint.increaseClientSeq(changes.length);
     return ChangePack.create(this.key, checkpoint, false, changes);
@@ -642,12 +861,12 @@ export class Document<T> {
    *
    * @internal
    */
-  public getClone(): CRDTObject | undefined {
+  public getCloneRoot(): CRDTObject | undefined {
     if (!this.clone) {
       return;
     }
 
-    return this.clone.getObject();
+    return this.clone.root.getObject();
   }
 
   /**
@@ -656,8 +875,11 @@ export class Document<T> {
   public getRoot(): JSONObject<T> {
     this.ensureClone();
 
-    const context = ChangeContext.create(this.changeID.next(), this.clone!);
-    return createJSON<T>(context, this.clone!.getObject());
+    const context = ChangeContext.create(
+      this.changeID.next(),
+      this.clone!.root,
+    );
+    return createJSON<T>(context, this.clone!.root.getObject());
   }
 
   /**
@@ -667,7 +889,7 @@ export class Document<T> {
    */
   public garbageCollect(ticket: TimeTicket): number {
     if (this.clone) {
-      this.clone.garbageCollect(ticket);
+      this.clone.root.garbageCollect(ticket);
     }
     return this.root.garbageCollect(ticket);
   }
@@ -708,25 +930,24 @@ export class Document<T> {
    * `applySnapshot` applies the given snapshot into this document.
    */
   public applySnapshot(serverSeq: Long, snapshot?: Uint8Array): void {
-    const obj = converter.bytesToObject(snapshot);
-    this.root = new CRDTRoot(obj);
+    const { root, presences } = converter.bytesToSnapshot<P>(snapshot);
+    this.root = new CRDTRoot(root);
+    this.presences = presences;
     this.changeID = this.changeID.syncLamport(serverSeq);
 
     // drop clone because it is contaminated.
     this.clone = undefined;
 
-    if (this.eventStreamObserver) {
-      this.eventStreamObserver.next({
-        type: DocEventType.Snapshot,
-        value: snapshot,
-      });
-    }
+    this.publish({
+      type: DocEventType.Snapshot,
+      value: snapshot,
+    });
   }
 
   /**
    * `applyChanges` applies the given changes into this document.
    */
-  public applyChanges(changes: Array<Change>): void {
+  public applyChanges(changes: Array<Change<P>>): void {
     if (logger.isEnabled(LogLevel.Debug)) {
       logger.debug(
         `trying to apply ${changes.length} remote changes.` +
@@ -739,9 +960,7 @@ export class Document<T> {
         changes
           .map(
             (change) =>
-              `${change
-                .getID()
-                .getStructureAsString()}\t${change.getStructureAsString()}`,
+              `${change.getID().toTestString()}\t${change.toTestString()}`,
           )
           .join('\n'),
       );
@@ -749,34 +968,72 @@ export class Document<T> {
 
     this.ensureClone();
     for (const change of changes) {
-      change.execute(this.clone!);
-    }
+      change.execute(this.clone!.root, this.clone!.presences);
 
-    const changeInfos: Array<ChangeInfo> = [];
-    for (const change of changes) {
-      const inernalOpInfos = change.execute(this.root);
-      changeInfos.push({
-        message: change.getMessage() || '',
-        operations: inernalOpInfos.map((opInfo) =>
-          this.toOperationInfo(opInfo),
-        ),
-        actor: change.getID().getActorID(),
-      });
-      this.changeID = this.changeID.syncLamport(change.getID().getLamport());
-    }
+      let changeInfo: ChangeInfo | undefined;
+      let docEvent: DocEvent<P> | undefined;
+      const actorID = change.getID().getActorID()!;
+      if (change.hasPresenceChange() && this.onlineClients.has(actorID)) {
+        const presenceChange = change.getPresenceChange()!;
+        switch (presenceChange.type) {
+          case PresenceChangeType.Put:
+            // NOTE(chacha912): When the user exists in onlineClients, but
+            // their presence was initially absent, we can consider that we have
+            // received their initial presence, so trigger the 'watched' event.
+            docEvent = {
+              type: this.presences.has(actorID)
+                ? DocEventType.PresenceChanged
+                : DocEventType.Watched,
+              value: {
+                clientID: actorID,
+                presence: presenceChange.presence,
+              },
+            };
+            break;
+          case PresenceChangeType.Clear:
+            // NOTE(chacha912): When the user exists in onlineClients, but
+            // PresenceChange(clear) is received, we can consider it as detachment
+            // occurring before unwatching.
+            // Detached user is no longer participating in the document, we remove
+            // them from the online clients and trigger the 'unwatched' event.
+            docEvent = {
+              type: DocEventType.Unwatched,
+              value: {
+                clientID: actorID,
+                presence: this.getPresence(actorID)!,
+              },
+            };
+            this.removeOnlineClient(actorID);
+            break;
+          default:
+            break;
+        }
+      }
 
-    if (changes.length && this.eventStreamObserver) {
-      // NOTE: RemoteChange event should be emitted synchronously with
-      // applying changes. This is because 3rd party model should be synced
-      // with the Document after RemoteChange event is emitted. If the event
-      // is emitted asynchronously, the model can be changed and breaking
-      // consistency.
-      for (const changeInfo of changeInfos) {
-        this.eventStreamObserver.next({
+      const opInfos = change.execute(this.root, this.presences);
+      if (change.hasOperations()) {
+        changeInfo = {
+          actor: actorID,
+          message: change.getMessage() || '',
+          operations: opInfos,
+        };
+      }
+
+      // DocEvent should be emitted synchronously with applying changes.
+      // This is because 3rd party model should be synced with the Document
+      // after RemoteChange event is emitted. If the event is emitted
+      // asynchronously, the model can be changed and breaking consistency.
+      if (changeInfo) {
+        this.publish({
           type: DocEventType.RemoteChange,
           value: changeInfo,
         });
       }
+      if (docEvent) {
+        this.publish(docEvent);
+      }
+
+      this.changeID = this.changeID.syncLamport(change.getID().getLamport());
     }
 
     if (logger.isEnabled(LogLevel.Debug)) {
@@ -793,7 +1050,7 @@ export class Document<T> {
    */
   public getValueByPath(path: string): JSONElement | undefined {
     if (!path.startsWith('$')) {
-      throw new Error('The path must start with "$"');
+      throw new YorkieError(Code.InvalidArgument, `path must start with "$"`);
     }
     const pathArr = path.split('.');
     pathArr.shift();
@@ -805,29 +1062,87 @@ export class Document<T> {
     return value;
   }
 
-  private createPaths(change: Change): Array<string> {
-    const pathTrie = new Trie<string>('$');
-    for (const op of change.getOperations()) {
-      const createdAt = op.getEffectedCreatedAt();
-      if (createdAt) {
-        const subPaths = this.root.createSubPaths(createdAt)!;
-        subPaths.shift();
-        pathTrie.insert(subPaths);
-      }
-    }
-    return pathTrie.findPrefixes().map((element) => element.join('.'));
+  /**
+   * `setOnlineClients` sets the given online client set.
+   *
+   * @internal
+   */
+  public setOnlineClients(onlineClients: Set<ActorID>) {
+    this.onlineClients = onlineClients;
   }
 
-  private toOperationInfo(internalOpInfo: InternalOpInfo): OperationInfo {
-    const opInfo = {} as OperationInfo;
-    for (const key of Object.keys(internalOpInfo)) {
-      if (key === 'element') {
-        opInfo.path = this.root.createSubPaths(internalOpInfo[key])!.join('.');
-      } else {
-        const k = key as keyof Omit<InternalOpInfo, 'element'>;
-        opInfo[k] = internalOpInfo[k];
+  /**
+   * `addOnlineClient` adds the given clientID into the online client set.
+   *
+   * @internal
+   */
+  public addOnlineClient(clientID: ActorID) {
+    this.onlineClients.add(clientID);
+  }
+
+  /**
+   * `removeOnlineClient` removes the clientID from the online client set.
+   *
+   * @internal
+   */
+  public removeOnlineClient(clientID: ActorID) {
+    this.onlineClients.delete(clientID);
+  }
+
+  /**
+   * `hasPresence` returns whether the given clientID has a presence or not.
+   *
+   * @internal
+   */
+  public hasPresence(clientID: ActorID): boolean {
+    return this.presences.has(clientID);
+  }
+
+  /**
+   * `getMyPresence` returns the presence of the current client.
+   */
+  public getMyPresence(): P {
+    if (this.status !== DocumentStatus.Attached) {
+      return {} as P;
+    }
+
+    const p = this.presences.get(this.changeID.getActorID()!)!;
+    return deepcopy(p);
+  }
+
+  /**
+   * `getPresence` returns the presence of the given clientID.
+   */
+  public getPresence(clientID: ActorID): P | undefined {
+    if (!this.onlineClients.has(clientID)) return;
+    const p = this.presences.get(clientID);
+    return p ? deepcopy(p) : undefined;
+  }
+
+  /**
+   * `getPresenceForTest` returns the presence of the given clientID
+   * regardless of whether the client is online or not.
+   *
+   * @internal
+   */
+  public getPresenceForTest(clientID: ActorID): P | undefined {
+    const p = this.presences.get(clientID);
+    return p ? deepcopy(p) : undefined;
+  }
+
+  /**
+   * `getPresences` returns the presences of online clients.
+   */
+  public getPresences(): Array<{ clientID: ActorID; presence: P }> {
+    const presences: Array<{ clientID: ActorID; presence: P }> = [];
+    for (const clientID of this.onlineClients) {
+      if (this.presences.has(clientID)) {
+        presences.push({
+          clientID,
+          presence: deepcopy(this.presences.get(clientID)!),
+        });
       }
     }
-    return opInfo;
+    return presences;
   }
 }

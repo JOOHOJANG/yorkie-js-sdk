@@ -7,6 +7,51 @@ and Yorkie JS SDK adheres to [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Unreleased]
 
+## [0.4.5] - 2023-07-20
+
+### Added
+* Move Presence from Client to Document by @chacha912 in https://github.com/yorkie-team/yorkie-js-sdk/pull/574
+* Tree edit update by @ehuas in https://github.com/yorkie-team/yorkie-js-sdk/pull/576
+
+### Changed
+* Replace selection with presence by @chacha912 in https://github.com/yorkie-team/yorkie-js-sdk/pull/578
+* Bump word-wrap from 1.2.3 to 1.2.4 by @dependabot in https://github.com/yorkie-team/yorkie-js-sdk/pull/575
+* Bump up protobuf by @JOOHOJANG in https://github.com/yorkie-team/yorkie-js-sdk/pull/570
+* Prevent usage of `.` in JSONObject key by @chacha912 in https://github.com/yorkie-team/yorkie-js-sdk/pull/569
+
+### Removed
+* Remove duplicated test by @hackerwins in https://github.com/yorkie-team/yorkie-js-sdk/pull/564
+* Remove InternalOpInfo by @chacha912 in https://github.com/yorkie-team/yorkie-js-sdk/pull/566
+
+### Fixed
+* Fix `pathToTreePos` TC by @JOOHOJANG in https://github.com/yorkie-team/yorkie-js-sdk/pull/571
+* Fix GC to remove all removed nodes by @JOOHOJANG in https://github.com/yorkie-team/yorkie-js-sdk/pull/568
+* Expose pathToIndex API by @JOOHOJANG in https://github.com/yorkie-team/yorkie-js-sdk/pull/567
+
+## [0.4.4] - 2023-07-05
+
+### Changed
+* Cleanup of test-related terminology by @chacha912 in https://github.com/yorkie-team/yorkie-js-sdk/pull/562
+* Use TreeRangeStruct to represent tree selection by @chacha912 in https://github.com/yorkie-team/yorkie-js-sdk/pull/561
+
+## [0.4.3] - 2023-06-29
+
+### Added
+* Apply garbage collection to tree by @JOOHOJANG in https://github.com/yorkie-team/yorkie-js-sdk/pull/550
+
+### Changed
+* Cleanup TextChange by @chacha912 in https://github.com/yorkie-team/yorkie-js-sdk/pull/551
+
+### Fixed
+* Fix garbage collection bug by @JOOHOJANG in https://github.com/yorkie-team/yorkie-js-sdk/pull/555
+
+## [0.4.2] - 2023-06-19
+
+### Added
+* Support for OperationInfo inference on Document.subscribe by @easylogic in https://github.com/yorkie-team/yorkie-js-sdk/pull/535
+* Add peer selection display example by @easylogic in https://github.com/yorkie-team/yorkie-js-sdk/pull/544
+* Implement Tree.Style and Tree.StyleByPath by @JOOHOJANG, @hackerwins in https://github.com/yorkie-team/yorkie-js-sdk/pull/542
+
 ## [0.4.1] - 2023-06-09
 
 ### Changed
