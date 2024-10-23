@@ -20,6 +20,7 @@ import { Text } from '@yorkie-js-sdk/src/document/json/text';
 import { Tree } from '@yorkie-js-sdk/src/document/json/tree';
 import { Counter } from '@yorkie-js-sdk/src/document/json/counter';
 import { CounterType } from '@yorkie-js-sdk/src/document/crdt/counter';
+import { AIWriter } from '@yorkie-js-sdk/src/ai';
 import * as Devtools from '@yorkie-js-sdk/src/devtools/types';
 
 export {
@@ -137,6 +138,7 @@ export { Devtools };
  * @public
  */
 export default {
+  AIWriter,
   Client,
   Document,
   Primitive,
@@ -152,6 +154,7 @@ export default {
 // TODO(hackerwins): Remove this when we have a better way to expose the API.
 if (typeof globalThis !== 'undefined') {
   (globalThis as any).yorkie = {
+    AIWriter,
     Client,
     Document,
     Primitive,
