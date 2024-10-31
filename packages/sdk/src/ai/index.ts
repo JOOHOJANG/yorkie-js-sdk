@@ -2,6 +2,22 @@ import { Client } from '@yorkie-js-sdk/src/client/client';
 import { Document } from '@yorkie-js-sdk/src/document/document';
 
 const DELAY = 100;
+// eslint-disable-next-line @typescript-eslint/naming-convention
+const EMPTY_PARA = {
+  type: 'paragraph',
+  attributes: {
+    '@ctype': 'paragraph',
+  },
+  children: [
+    {
+      type: 'node',
+      attributes: {
+        '@ctype': 'textNode',
+      },
+      children: [],
+    },
+  ],
+};
 /**
  * `AIWriter`
  */
@@ -32,20 +48,59 @@ export class AIWriter<T> {
   /**
    *
    */
-  public async generate(query: string) {
+  public async generate(query: string, paraIndex = 0) {
     const res = await this._fetch(query);
     const { content } = res.choices[0].message;
-    let index = 0;
-    const revealText = () => {
-      if (index < content.length) {
-        this._update(
-          [1, 0, 0, index],
-          [1, 0, 0, index],
-          content.slice(index, index + 10),
-        );
+
+    if (!content.length) {
+      return;
+    }
+    const lines = (content as string).split('\n').flatMap((line) => {
+      let index = 0;
+      const arr = [''];
+
+      while (index < line.length) {
+        arr.push(line.slice(index, index + 10));
         index += 10;
-        setTimeout(revealText, DELAY);
       }
+
+      return arr;
+    });
+
+    let index = 1;
+    let textIndex = 0;
+    const revealText = () => {
+      if (lines[index] === '') {
+        paraIndex++;
+        textIndex = 0;
+
+        this._doc.update((root) => {
+          (root as any).text.editByPath(
+            [1, paraIndex],
+            [1, paraIndex],
+            EMPTY_PARA,
+          );
+        });
+      } else {
+        if (lines[index].length) {
+          this._doc.update((root) => {
+            (root as any).text.editByPath(
+              [1, paraIndex, 0, textIndex],
+              [1, paraIndex, 0, textIndex],
+              { type: 'text', value: lines[index] },
+            );
+
+            textIndex += lines[index].length;
+          });
+        }
+      }
+      index++;
+
+      setTimeout(() => {
+        if (index < lines.length) {
+          revealText();
+        }
+      }, DELAY);
     };
 
     revealText();
