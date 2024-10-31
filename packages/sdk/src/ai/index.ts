@@ -87,6 +87,10 @@ export class AIWriter<T> {
       }),
     });
 
-    return await response.json();
+    const res = await response.json();
+
+    console.log(res);
+
+    return res;
   }
 }
