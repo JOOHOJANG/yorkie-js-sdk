@@ -662,7 +662,7 @@ export class CRDTTreeNode
       this.attrs = new RHT();
     }
 
-    const pairs = new Array<[RHTNode | undefined, RHTNode | undefined]>();
+    const pairs = [];
     for (const [key, value] of Object.entries(attrs)) {
       pairs.push(this.attrs.set(key, value, editedAt));
     }
@@ -1715,5 +1715,12 @@ export class CRDTTree extends CRDTElement implements GCParent {
 
     const prev = siblings[offset - 1];
     return [prev, prev.isText ? TokenType.Text : TokenType.End];
+  }
+
+  /**
+   *
+   */
+  public findLeafPathOfSubTree(parentPath: Array<number>) {
+    return this.indexTree.findLeafPathOfSubTree(parentPath);
   }
 }

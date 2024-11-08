@@ -1010,4 +1010,57 @@ export class IndexTree<T extends IndexTreeNode<T>> {
     const treePos = this.findTreePos(index);
     return this.treePosToPath(treePos);
   }
+
+  /**
+   *
+   */
+  public findLeafPathOfSubTree(subTreePath: Array<number> = []) {
+    let root = this.root;
+    let index = 0;
+    const path = [...subTreePath];
+
+    while (subTreePath.length > index) {
+      const last = subTreePath[index];
+
+      if (!last) {
+        break;
+      }
+
+      if (root.hasTextChild()) {
+        const offset = root.children.reduce(
+          (acc, child) => (acc += child.value.length),
+          0,
+        );
+
+        path.push(offset);
+        break;
+      } else if (root.type === 'node') {
+        path.push(0);
+        break;
+      }
+
+      root = root.children[last];
+      index++;
+    }
+
+    while (root.children.length > 0) {
+      if (root.hasTextChild()) {
+        const offset = root.children.reduce(
+          (acc, child) => (acc += child.value.length),
+          0,
+        );
+
+        path.push(offset);
+        break;
+      } else if (root.type === 'node') {
+        path.push(0);
+        break;
+      }
+
+      path.push(root.children.length - 1);
+      root = root.children[root.children.length - 1];
+    }
+
+    return path;
+  }
 }

@@ -446,7 +446,7 @@ export class Tree {
     }
 
     const ticket = this.context!.getLastTimeTicket();
-    let crdtNodes = new Array<CRDTTreeNode>();
+    let crdtNodes = [];
 
     if (contents[0]?.type === DefaultTextType) {
       let compVal = '';
@@ -804,5 +804,12 @@ export class Tree {
     ];
 
     return this.tree.posRangeToPathRange(posRange);
+  }
+
+  /**
+   *
+   */
+  public findLeafPathOfSubTree(path: Array<number>) {
+    return this.tree?.findLeafPathOfSubTree(path);
   }
 }
