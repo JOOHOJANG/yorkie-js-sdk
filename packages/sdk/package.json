@@ -8,6 +8,7 @@
     "main": "./dist/yorkie-js-sdk.js",
     "typings": "./dist/yorkie-js-sdk.d.ts"
   },
+  "postinstall": "pnpm build",
   "files": [
     "dist"
   ],
