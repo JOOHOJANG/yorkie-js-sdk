@@ -1,4 +1,4 @@
-import { Client } from '@yorkie-js-sdk/src/client/client';
+import { Client, SyncMode } from '@yorkie-js-sdk/src/client/client';
 import { Document } from '@yorkie-js-sdk/src/document/document';
 
 const DELAY = 150;
@@ -80,6 +80,8 @@ export class AIWriter<T> {
     if (!content.length) {
       return;
     }
+    this._client.changeSyncMode(this._doc, SyncMode.RealtimePushOnly);
+
     this._doc.update((root) => {
       (root as any).text.editBulkByPath(
         [compIndex],
@@ -134,6 +136,7 @@ export class AIWriter<T> {
         if (index < lines.length) {
           revealText();
         } else {
+          this._client.changeSyncMode(this._doc, SyncMode.Realtime);
           return Promise.resolve();
         }
       }, DELAY);

@@ -116,13 +116,6 @@ tags
 # Webstorm
 .idea
 
-# Dist files
-dist/
-bundle/
-
-# Docs files
-docs/
-
 # ghpages
 ghpages/
 
