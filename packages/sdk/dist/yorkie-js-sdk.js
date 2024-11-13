@@ -20635,8 +20635,8 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
     children: []
   };
   class AIWriter {
-    constructor(apiKey, docKey, host) {
-      __publicField(this, "_apiKey");
+    constructor(gptKey, docKey, apiKey, host) {
+      __publicField(this, "_gptKey");
       __publicField(this, "_messages", [
         {
           role: "system",
@@ -20645,11 +20645,13 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
       ]);
       __publicField(this, "_doc");
       __publicField(this, "_client");
-      this._apiKey = apiKey;
+      this._gptKey = gptKey;
       this._doc = new Document(docKey, {
         disableGC: true
       });
-      this._client = new Client(`http://${host}`);
+      this._client = new Client(`https://${host}`, {
+        apiKey
+      });
     }
     /** */
     async initialize() {
@@ -20755,7 +20757,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${this._apiKey}`
+          Authorization: `Bearer ${this._gptKey}`
         },
         body: JSON.stringify({
           model: "gpt-4o",

@@ -38,7 +38,7 @@ type TRole = 'assistant' | 'user' | 'system';
  * `AIWriter`
  */
 export class AIWriter<T> {
-  _apiKey: string;
+  _gptKey: string;
   _messages: Array<{ role: TRole; content: string }> = [
     {
       role: 'system',
@@ -48,12 +48,14 @@ export class AIWriter<T> {
   ];
   _doc: Document<T>;
   _client: Client;
-  constructor(apiKey: string, docKey: string, host: string) {
-    this._apiKey = apiKey;
+  constructor(gptKey: string, docKey: string, apiKey: string, host: string) {
+    this._gptKey = gptKey;
     this._doc = new Document(docKey, {
       disableGC: true,
     });
-    this._client = new Client(`http://${host}`);
+    this._client = new Client(`https://${host}`, {
+      apiKey,
+    });
   }
 
   /** */
@@ -177,7 +179,7 @@ export class AIWriter<T> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this._apiKey}`,
+        Authorization: `Bearer ${this._gptKey}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o', // 모델 버전 선택

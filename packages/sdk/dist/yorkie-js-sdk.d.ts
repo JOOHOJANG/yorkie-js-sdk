@@ -38,14 +38,14 @@ export declare type AddOpInfo = {
  * `AIWriter`
  */
 declare class AIWriter<T> {
-    _apiKey: string;
+    _gptKey: string;
     _messages: Array<{
         role: TRole;
         content: string;
     }>;
     _doc: Document_2<T>;
     _client: Client;
-    constructor(apiKey: string, docKey: string, host: string);
+    constructor(gptKey: string, docKey: string, apiKey: string, host: string);
     /** */
     initialize(): Promise<boolean>;
     /**
