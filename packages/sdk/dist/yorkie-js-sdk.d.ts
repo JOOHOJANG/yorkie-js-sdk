@@ -51,7 +51,7 @@ declare class AIWriter<T> {
     /**
      *
      */
-    generate(query: string, compIndex?: number): Promise<void>;
+    generate(query: string, context?: string, compIndex?: number): Promise<void>;
     private _fetch;
 }
 

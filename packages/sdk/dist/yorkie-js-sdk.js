@@ -20655,7 +20655,9 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
     async initialize() {
       try {
         await this._client.activate();
-        await this._client.attach(this._doc);
+        await this._client.attach(this._doc, {
+          initialPresence: { userId: "gpt" }
+        });
       } catch {
         return false;
       }
@@ -20664,9 +20666,15 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
     /**
      *
      */
-    async generate(query, compIndex = 0) {
+    async generate(query, context = "", compIndex = 0) {
+      if (context.length) {
+        this._messages.push({
+          role: "system",
+          content: `이제부터 내가 하는 모든 질문은 지금 내가 준 컨텍스트를 베이스에 두고 대답해줘야해. 다음줄부터 컨텍스트를 알려줄게. 
+ ${context}`
+        });
+      }
       const res = await this._fetch(query);
-      console.log(res);
       const { content } = res.choices[0].message;
       if (!content.length) {
         return;
@@ -20704,12 +20712,24 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
           });
         } else {
           if (lines[index].length) {
-            this._doc.update((root) => {
-              root.text.editByPath(
-                [compIndex + 1, paraIndex, 0, textIndex],
-                [compIndex + 1, paraIndex, 0, textIndex],
-                { type: "text", value: lines[index] }
-              );
+            this._doc.update((root, presence) => {
+              const path = [compIndex + 1, paraIndex, 0, textIndex];
+              root.text.editByPath(path, path, {
+                type: "text",
+                value: lines[index]
+              });
+              const newPath = [
+                compIndex + 1,
+                paraIndex,
+                0,
+                textIndex + lines[index].length
+              ];
+              presence.set({
+                selections: [
+                  root.text.pathRangeToPosRange([newPath, newPath])
+                ],
+                userId: "gpt"
+              });
               textIndex += lines[index].length;
             });
           }
@@ -20720,6 +20740,9 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
             revealText();
           } else {
             this._client.changeSyncMode(this._doc, SyncMode.Realtime);
+            this._doc.update((_, presence) => {
+              presence.set({ userId: "gpt" });
+            });
             return Promise.resolve();
           }
         }, DELAY);
@@ -20743,7 +20766,6 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
         })
       });
       const res = await response.json();
-      console.log(res);
       this._messages.push({
         role: "assistant",
         content: res.choices[0].message.content
